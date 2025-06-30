@@ -36,7 +36,7 @@ use swf::{Rectangle, Twips};
 // and `y + height` as floating point operations before
 // `round_to_even`, which is needed to match Flash Player's
 // rounding behavior.
-fn get_rectangle_x_y_width_height<'gc>(
+pub fn get_rectangle_x_y_width_height<'gc>(
     activation: &mut Activation<'_, 'gc>,
     rectangle: Object<'gc>,
 ) -> Result<(i32, i32, i32, i32), Error<'gc>> {

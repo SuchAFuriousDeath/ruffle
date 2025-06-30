@@ -1,6 +1,8 @@
 use crate::avm2::error::{argument_error, error, make_error_2008};
+use crate::avm2::globals::flash::display::bitmap_data::get_rectangle_x_y_width_height;
 use crate::avm2::globals::methods::flash_geom_matrix_3d as matrix3d_methods;
 use crate::avm2::globals::slots::flash_geom_matrix_3d as matrix3d_slots;
+use crate::avm2::globals::slots::flash_geom_point as point_slots;
 use crate::avm2::globals::slots::flash_geom_rectangle as rectangle_slots;
 use crate::avm2::parameters::ParametersExt;
 use crate::avm2::Activation;
@@ -224,6 +226,81 @@ pub fn set_program<'gc>(
             .map(|p| p.as_program_3d().unwrap());
         context.set_program(program);
     }
+    Ok(Value::Undefined)
+}
+
+pub fn draw_to_bitmap_data<'gc>(
+    activation: &mut Activation<'_, 'gc>,
+    this: Value<'gc>,
+    args: &[Value<'gc>],
+) -> Result<Value<'gc>, Error<'gc>> {
+    let this = this.as_object().unwrap();
+
+    if let Some(context) = this.as_context_3d() {
+        let destination = args
+            .get_object(activation, 0, "destination")?
+            .as_bitmap_data()
+            .unwrap();
+
+        let (x, y, width, height) = args
+            .try_get_object(activation, 1)
+            .map(|rect| -> Result<_, Error<'gc>> {
+                get_rectangle_x_y_width_height(activation, rect)
+            })
+            .transpose()?
+            .unwrap_or_else(|| {
+                (
+                    0,
+                    0,
+                    destination.width().try_into().unwrap(),
+                    destination.height().try_into().unwrap(),
+                )
+            });
+
+        let (dst_x, dst_y) = args
+            .try_get_object(activation, 2)
+            .map(|point| -> Result<_, Error<'gc>> {
+                let x = point
+                    .get_slot(point_slots::X)
+                    .coerce_to_number(activation)?;
+
+                let y = point
+                    .get_slot(point_slots::Y)
+                    .coerce_to_number(activation)?;
+
+                Ok((x as i32, y as i32))
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        // Create source rectangle in twips
+        let source_rect = Rectangle {
+            x_min: Twips::from_pixels(x.into()),
+            y_min: Twips::from_pixels(y.into()),
+            x_max: Twips::from_pixels((x + width).into()),
+            y_max: Twips::from_pixels((y + height).into()),
+        };
+
+        // For now, stub the implementation
+        avm2_stub_method!(
+            activation,
+            "flash.display3D.Context3D",
+            "drawToBitmapData"
+        );
+
+        // Call the context3d method with the calculated parameters
+        // Note: The actual pixel data transfer would happen in the render backend
+        let dest_pixels = Vec::new(); // Placeholder - actual implementation would get pixels from render target
+        context.draw_to_bitmap_data(
+            source_rect,
+            dest_pixels,
+            destination.width(),
+            destination.height(),
+            dst_x,
+            dst_y,
+        );
+    }
+
     Ok(Value::Undefined)
 }
 

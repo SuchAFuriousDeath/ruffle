@@ -1198,6 +1198,24 @@ impl Context3D for WgpuContext3D {
             Context3DCommand::SetScissorRectangle { rect } => {
                 self.scissor_rectangle = rect;
             }
+            Context3DCommand::DrawToBitmapData {
+                source: _,
+                dest: _,
+                dest_width: _,
+                dest_height: _,
+                dest_x: _,
+                dest_y: _,
+            } => {
+                // TODO: Implement DrawToBitmapData
+                // This would need to:
+                // 1. Read pixels from the current render target within the source rectangle
+                // 2. Write those pixels to the destination bitmap data at the specified position
+                // 
+                // For now, this is a stub implementation that does nothing
+                tracing::warn!(
+                    "Context3D::drawToBitmapData is not yet implemented in wgpu backend"
+                );
+            }
         }
     }
 }

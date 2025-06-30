@@ -476,6 +476,27 @@ impl<'gc> Context3DObject<'gc> {
             ctx.process_command(Context3DCommand::SetScissorRectangle { rect })
         });
     }
+
+    pub(crate) fn draw_to_bitmap_data(
+        &self,
+        source: Rectangle<Twips>,
+        dest: Vec<u8>,
+        dest_width: u32,
+        dest_height: u32,
+        dest_x: i32,
+        dest_y: i32,
+    ) {
+        self.with_context_3d(|ctx| {
+            ctx.process_command(Context3DCommand::DrawToBitmapData {
+                source,
+                dest,
+                dest_width,
+                dest_height,
+                dest_x,
+                dest_y,
+            })
+        });
+    }
 }
 
 #[derive(Collect, HasPrefixField)]

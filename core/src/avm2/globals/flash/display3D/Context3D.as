@@ -1,7 +1,9 @@
 package flash.display3D {
     import flash.events.EventDispatcher;
     import flash.geom.Matrix3D;
+    import flash.geom.Point;
     import flash.geom.Rectangle;
+    import flash.display.BitmapData;
     import flash.display3D.textures.CubeTexture;
     import flash.display3D.textures.TextureBase;
     import flash.display3D.textures.RectangleTexture;
@@ -21,6 +23,7 @@ package flash.display3D {
         public native function setVertexBufferAt(index:int, buffer:VertexBuffer3D, bufferOffset:int = 0, format:String = "float4"):void;
         public native function createProgram():Program3D;
         public native function setProgram(program:Program3D):void;
+        public native function drawToBitmapData(destination:BitmapData, srcRect:Rectangle = null, destPoint:Point = null):void;
         public native function drawTriangles(indexBuffer:IndexBuffer3D, firstIndex:int = 0, numTriangles:int = -1):void;
         public native function present():void;
         public native function setCulling(triangleFaceToCull:String):void;

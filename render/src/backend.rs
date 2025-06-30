@@ -517,6 +517,14 @@ pub enum Context3DCommand<'a> {
     SetScissorRectangle {
         rect: Option<Rectangle<Twips>>,
     },
+    DrawToBitmapData {
+        source: Rectangle<Twips>,
+        dest: Vec<u8>,
+        dest_width: u32,
+        dest_height: u32,
+        dest_x: i32,
+        dest_y: i32,
+    },
 }
 
 #[derive(Clone, Debug)]
