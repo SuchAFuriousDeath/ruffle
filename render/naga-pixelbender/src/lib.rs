@@ -6,7 +6,8 @@ use naga::{
     AddressSpace, ArraySize, BinaryOperator, Binding, Block, BuiltIn, EntryPoint, Expression,
     Function, FunctionArgument, FunctionResult, GlobalVariable, Handle, ImageClass, ImageDimension,
     ImageQuery, Literal, LocalVariable, MathFunction, Module, RelationalFunction, ResourceBinding,
-    ScalarKind, ShaderStage, Span, Statement, SwizzleComponent, Type, TypeInner, VectorSize,
+    ScalarKind, ShaderStage, Span, Statement, SwizzleComponent, Type, TypeInner, UnaryOperator,
+    VectorSize,
 };
 use ruffle_render::pixel_bender::{
     Opcode, Operation, PixelBenderParam, PixelBenderParamQualifier, PixelBenderReg,
@@ -43,6 +44,8 @@ pub struct ShaderBuilder<'a> {
     zerof32: Handle<Expression>,
     // The value 0i32
     zeroi32: Handle<Expression>,
+    // The value 1i32
+    onei32: Handle<Expression>,
     // The value vec4f(0.0)
     zerovec4f: Handle<Expression>,
     // The value 1.0f32
@@ -279,6 +282,10 @@ impl ShaderBuilder<'_> {
             })
             .collect::<Vec<_>>();
 
+        let onei32 = func
+            .expressions
+            .append(Expression::Literal(Literal::I32(0)), Span::UNDEFINED);
+
         let zeroi32 = func
             .expressions
             .append(Expression::Literal(Literal::I32(0)), Span::UNDEFINED);
@@ -327,6 +334,7 @@ impl ShaderBuilder<'_> {
             sampler,
             zerof32,
             zeroi32,
+            onei32,
             zerovec4f,
             onef32,
             temp_vec4f_local,
@@ -1241,6 +1249,39 @@ impl ShaderBuilder<'_> {
                             expr: src,
                             convert: Some(4),
                         }),
+                        Opcode::IntToBool | Opcode::LogicalNot => {
+                            // Create zero vector for comparison
+                            let zero_vec = self.evaluate_expr(Expression::Splat {
+                                size: naga::VectorSize::Quad,
+                                value: self.zeroi32,
+                            });
+
+                            // Create one vector for result
+                            let one_vec = self.evaluate_expr(Expression::Splat {
+                                size: naga::VectorSize::Quad,
+                                value: self.onei32,
+                            });
+
+                            let op = match opcode {
+                                Opcode::IntToBool => BinaryOperator::NotEqual,
+                                Opcode::LogicalNot => BinaryOperator::Equal,
+                                _ => unreachable!(),
+                            };
+
+                            // Compare src != 0
+                            let condition = self.evaluate_expr(Expression::Binary {
+                                op,
+                                left: src,
+                                right: zero_vec,
+                            });
+
+                            // Select 1 if true, 0 if false
+                            self.evaluate_expr(Expression::Select {
+                                condition,
+                                accept: one_vec,
+                                reject: zero_vec,
+                            })
+                        }
                         Opcode::IntToFloat => self.evaluate_expr(Expression::As {
                             kind: crate::ScalarKind::Float,
                             expr: src,
