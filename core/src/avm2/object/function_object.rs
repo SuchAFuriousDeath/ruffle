@@ -125,9 +125,12 @@ impl<'gc> FunctionObject<'gc> {
             object_class.instance_vtable(),
         );
 
-        self.call(activation, instance.into(), arguments)?;
+        let result = self.call(activation, instance.into(), arguments)?;
 
-        Ok(instance)
+        match result {
+            Value::Object(obj) => Ok(obj),
+            _ => Ok(instance),
+        }
     }
 
     pub fn prototype(&self) -> Option<Object<'gc>> {
