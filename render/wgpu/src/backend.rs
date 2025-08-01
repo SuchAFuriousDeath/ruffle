@@ -851,7 +851,7 @@ impl<T: RenderTarget + 'static> RenderBackend for WgpuRenderBackend<T> {
         &mut self,
         shader: PixelBenderShader,
     ) -> Result<PixelBenderShaderHandle, BitmapError> {
-        self.compile_pixelbender_shader_impl(shader)
+        Ok(self.compile_pixelbender_shader_impl(shader))
     }
 
     fn run_pixelbender_shader(
@@ -960,7 +960,7 @@ impl<T: RenderTarget + 'static> RenderBackend for WgpuRenderBackend<T> {
             1,
             // When running a standalone shader, we always process the entire image
             &FilterSource::for_entire_texture(&target_texture.texture),
-        )?;
+        );
 
         let index = Some(self.active_frame.submit_for_target(
             &self.descriptors,

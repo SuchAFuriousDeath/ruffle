@@ -208,10 +208,6 @@ impl<'gc> Avm1Button<'gc> {
         self.invalidate_cached_bitmap(context.gc());
     }
 
-    pub fn state(self) -> Option<ButtonState> {
-        Some(self.0.state.get())
-    }
-
     fn get_boolean_property(
         self,
         name: AvmString<'gc>,

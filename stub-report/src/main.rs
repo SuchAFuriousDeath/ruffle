@@ -1,8 +1,6 @@
-use std::path::PathBuf;
-
-use anyhow::Result;
 use clap::Parser;
 use ruffle_core::PlayerBuilder;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[clap(name = "Ruffle Stub Report Generator", author, version)]
@@ -12,10 +10,9 @@ struct Opt {
     output_path: PathBuf,
 }
 
-fn main() -> Result<()> {
+fn main() {
     let opt: Opt = Opt::parse();
     PlayerBuilder::new()
         .with_stub_report_output(opt.output_path)
         .build();
-    Ok(())
 }

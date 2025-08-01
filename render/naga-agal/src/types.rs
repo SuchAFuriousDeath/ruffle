@@ -1,4 +1,3 @@
-use crate::Error;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -71,15 +70,16 @@ pub struct DestField {
 }
 
 impl DestField {
-    pub fn parse(val: u32) -> Result<DestField, Error> {
+    pub fn parse(val: u32) -> DestField {
         let reg_num = (val & 0xFFFF) as u16;
         let write_mask = Mask::from_bits(((val >> 16) & 0xF) as u8).unwrap();
         let reg_type = RegisterType::from_u16(((val >> 24) & 0xF) as u16).unwrap();
-        Ok(DestField {
+
+        DestField {
             register_type: reg_type,
             write_mask,
             reg_num,
-        })
+        }
     }
 }
 
@@ -105,7 +105,7 @@ bitflags::bitflags! {
 }
 
 impl SourceField {
-    pub fn parse(val: u64) -> Result<SourceField, Error> {
+    pub fn parse(val: u64) -> SourceField {
         // FIXME - check that all the other bits are 0
         let reg_num = (val & 0xFFFF) as u16;
         let indirect_offset = ((val >> 16) & 0xFF) as u8;
@@ -114,7 +114,8 @@ impl SourceField {
         let index_type = RegisterType::from_u16(((val >> 40) & 0xF) as u16).unwrap();
         let index_select = ((val >> 48) & 0x3) as u8;
         let direct_mode = DirectMode::from_u16(((val >> 63) & 0x1) as u16).unwrap();
-        Ok(SourceField {
+
+        SourceField {
             direct_mode,
             index_select,
             index_type,
@@ -122,7 +123,7 @@ impl SourceField {
             swizzle,
             indirect_offset,
             reg_num,
-        })
+        }
     }
 }
 
@@ -163,10 +164,10 @@ pub struct Special {
 }
 
 impl Special {
-    pub fn parse(val: u8) -> Result<Special, Error> {
-        Ok(Special {
+    pub fn parse(val: u8) -> Special {
+        Special {
             ignore_sampler: (val & 0x4) != 0,
-        })
+        }
     }
 }
 
@@ -202,17 +203,17 @@ impl Default for SamplerConfig {
 }
 
 impl SamplerField {
-    pub fn parse(val: u64) -> Result<SamplerField, Error> {
+    pub fn parse(val: u64) -> SamplerField {
         let reg_num = (val & 0xFFFF) as u16;
         let load_bias = ((val >> 16) & 0xFF) as i8;
         let reg_type = RegisterType::from_u64((val >> 32) & 0xF).unwrap();
         let dimension = Dimension::from_u64((val >> 44) & 0xF).unwrap();
-        let special = Special::parse(((val >> 48) & 0xF) as u8).unwrap();
+        let special = Special::parse(((val >> 48) & 0xF) as u8);
         let wrapping = Wrapping::from_u64((val >> 52) & 0xF).unwrap();
         let mipmap = Mipmap::from_u64((val >> 56) & 0xF).unwrap();
         let filter = Filter::from_u64((val >> 60) & 0xF).unwrap();
 
-        Ok(SamplerField {
+        SamplerField {
             filter,
             mipmap,
             wrapping,
@@ -221,7 +222,7 @@ impl SamplerField {
             special,
             reg_num,
             reg_type,
-        })
+        }
     }
 }
 

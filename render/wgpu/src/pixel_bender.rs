@@ -5,7 +5,6 @@ use std::num::NonZeroU64;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
 
 use indexmap::IndexMap;
-use ruffle_render::error::Error as BitmapError;
 use ruffle_render::pixel_bender::{
     ImageInputTexture, PixelBenderShaderHandle, PixelBenderShaderImpl, PixelBenderType,
     OUT_COORD_NAME,
@@ -368,9 +367,9 @@ impl<T: RenderTarget> WgpuRenderBackend<T> {
     pub(super) fn compile_pixelbender_shader_impl(
         &mut self,
         shader: PixelBenderShader,
-    ) -> Result<PixelBenderShaderHandle, BitmapError> {
+    ) -> PixelBenderShaderHandle {
         let handle = PixelBenderWgpuShader::new(&self.descriptors, shader);
-        Ok(PixelBenderShaderHandle(Arc::new(handle)))
+        PixelBenderShaderHandle(Arc::new(handle))
     }
 }
 
@@ -391,7 +390,7 @@ pub(super) fn run_pixelbender_shader_impl(
     sample_count: u32,
     // FIXME - do we cover the whole source or the whole dest?
     source: &FilterSource,
-) -> Result<(), BitmapError> {
+) {
     let compiled_shader = &as_cache_holder(&shader);
     let mut staging_belt = compiled_shader.staging_belt.borrow_mut();
 
@@ -696,6 +695,4 @@ pub(super) fn run_pixelbender_shader_impl(
 
     // Note - we just drop the staging belt, instead of recalling it,
     // since we're not going to use it again.
-
-    Ok(())
 }

@@ -85,13 +85,13 @@ impl TestNavigatorBackend {
         executor: &NullExecutor,
         socket_events: Option<Vec<SocketEvent>>,
         log: Option<TestLogBackend>,
-    ) -> Result<Self, std::io::Error> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             spawner: executor.spawner(),
             relative_base_path: path,
             socket_events,
             log,
-        })
+        }
     }
 }
 

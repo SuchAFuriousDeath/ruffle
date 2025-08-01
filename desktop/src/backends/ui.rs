@@ -3,7 +3,7 @@ use crate::custom_event::RuffleEvent;
 use crate::gui::dialogs::message_dialog::MessageDialogConfiguration;
 use crate::gui::{DialogDescriptor, FilePicker, LocalizableText};
 use crate::preferences::GlobalPreferences;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use egui_winit::clipboard::Clipboard;
 use fontdb::{FaceInfo, Family};
@@ -162,7 +162,7 @@ impl DesktopUiBackend {
         font_database: Rc<fontdb::Database>,
         preferences: GlobalPreferences,
         file_picker: FilePicker,
-    ) -> Result<Self, Error> {
+    ) -> Self {
         // The window handle is only relevant to linux/wayland
         // If it fails it'll fallback to x11 or wlr-data-control
         let clipboard = Clipboard::new(
@@ -172,7 +172,8 @@ impl DesktopUiBackend {
                 .ok()
                 .map(|handle| handle.as_raw()),
         );
-        Ok(Self {
+
+        Self {
             window,
             event_loop,
             cursor_visible: true,
@@ -181,7 +182,7 @@ impl DesktopUiBackend {
             preferred_cursor: MouseCursor::Arrow,
             font_database,
             file_picker,
-        })
+        }
     }
 
     pub fn cursor(&self) -> egui::CursorIcon {

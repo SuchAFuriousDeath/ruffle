@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_wraps)] // Many native functions trigger this lint
+
 #[cfg(test)]
 #[macro_use]
 mod test_utils;

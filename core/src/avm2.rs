@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_wraps)] // Many native functions trigger this lint
+
 //! ActionScript Virtual Machine 2 (AS3) support
 
 use std::rc::Rc;

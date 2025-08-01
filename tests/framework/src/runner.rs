@@ -83,7 +83,7 @@ impl TestRunner {
             &executor,
             socket_events,
             test.options.log_fetch.then(|| log.clone()),
-        )?;
+        );
 
         let mut builder = PlayerBuilder::new()
             .with_log(log.clone())

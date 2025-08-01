@@ -157,8 +157,8 @@ impl VertexAttributeFormat {
         &self,
         base_expr: Handle<Expression>,
         builder: &mut NagaBuilder,
-    ) -> Result<Handle<Expression>> {
-        Ok(match self {
+    ) -> Handle<Expression> {
+        match self {
             // This does 'vec4f(my_vec1, 0.0, 0.0, 1.0)', 'vec4f(my_vec2, 0.0, 1.0)',
             // or 'vec4f(my_vec3, 1.0)'
             VertexAttributeFormat::Float1
@@ -234,7 +234,7 @@ impl VertexAttributeFormat {
             // The conversion is done by wgpu, since we specify
             // `wgpu::VertexFormat::Unorm8x4` in `CurrentPipeline::rebuild_pipeline`
             VertexAttributeFormat::Bytes4 => base_expr,
-        })
+        }
     }
 }
 
@@ -299,17 +299,17 @@ impl<'a> NagaBuilder<'a> {
 
             let opcode = Opcode::from_u32(raw_opcode).ok_or(Error::InvalidOpcode(raw_opcode))?;
 
-            let dest = DestField::parse(u32::from_le_bytes(token[4..8].try_into().unwrap()))?;
-            let source1 = SourceField::parse(u64::from_le_bytes(token[8..16].try_into().unwrap()))?;
+            let dest = DestField::parse(u32::from_le_bytes(token[4..8].try_into().unwrap()));
+            let source1 = SourceField::parse(u64::from_le_bytes(token[8..16].try_into().unwrap()));
 
             let source2 = if let Opcode::Tex = opcode {
                 Source2::Sampler(SamplerField::parse(u64::from_le_bytes(
                     token[16..24].try_into().unwrap(),
-                ))?)
+                )))
             } else {
                 Source2::SourceField(SourceField::parse(u64::from_le_bytes(
                     token[16..24].try_into().unwrap(),
-                ))?)
+                )))
             };
             operations.push((opcode, dest, source1, source2))
         }
@@ -370,7 +370,8 @@ impl<'a> NagaBuilder<'a> {
         for (opcode, dest, source1, source2) in parsed.operations {
             builder.process_opcode(&opcode, &dest, &source1, &source2)?;
         }
-        builder.finish()
+
+        Ok(builder.finish())
     }
 
     // Evaluates a binary operation. The AGAL assembly should always emit a swizzle that only uses
@@ -660,7 +661,7 @@ impl<'a> NagaBuilder<'a> {
         Ok(self.vertex_input_expressions[index].unwrap())
     }
 
-    fn get_temporary_register(&mut self, index: usize) -> Result<Handle<Expression>> {
+    fn get_temporary_register(&mut self, index: usize) -> Handle<Expression> {
         if self.temporary_registers[index].is_none() {
             let local = self.func.local_variables.append(
                 LocalVariable {
@@ -677,10 +678,11 @@ impl<'a> NagaBuilder<'a> {
                 .append(Expression::LocalVariable(local), Span::UNDEFINED);
             self.temporary_registers[index] = Some(expr);
         }
-        Ok(self.temporary_registers[index].unwrap())
+
+        self.temporary_registers[index].unwrap()
     }
 
-    fn emit_const_register_load(&mut self, index: usize) -> Result<Handle<Expression>> {
+    fn emit_const_register_load(&mut self, index: usize) -> Handle<Expression> {
         let const_value_expr = self.module.global_expressions.append(
             Expression::Literal(Literal::U32(index as u32)),
             Span::UNDEFINED,
@@ -706,27 +708,24 @@ impl<'a> NagaBuilder<'a> {
             Span::UNDEFINED,
         );
 
-        Ok(self.evaluate_expr(Expression::Load {
+        self.evaluate_expr(Expression::Load {
             pointer: register_pointer,
-        }))
+        })
     }
 
-    pub(crate) fn emit_varying_load(&mut self, index: usize) -> Result<Handle<Expression>> {
+    pub(crate) fn emit_varying_load(&mut self, index: usize) -> Handle<Expression> {
         // A LocalVariable evaluates to a pointer, so we need to load it
-        let varying_expr = self.get_varying_pointer(index)?;
-        Ok(match self.shader_config.shader_type {
+        let varying_expr = self.get_varying_pointer(index);
+
+        match self.shader_config.shader_type {
             ShaderType::Vertex => self.evaluate_expr(Expression::Load {
                 pointer: varying_expr,
             }),
             ShaderType::Fragment => varying_expr,
-        })
+        }
     }
 
-    fn emit_texture_load(
-        &mut self,
-        index: usize,
-        dimension: Dimension,
-    ) -> Result<TextureBindingData> {
+    fn emit_texture_load(&mut self, index: usize, dimension: Dimension) -> TextureBindingData {
         if self.texture_bindings[index].is_none() {
             let global_var = self.module.global_variables.append(
                 GlobalVariable {
@@ -778,8 +777,8 @@ impl<'a> NagaBuilder<'a> {
                     .append(Expression::GlobalVariable(sampler_var), Span::UNDEFINED),
             });
         }
-        let data = self.texture_bindings[index].as_ref().unwrap();
-        Ok(*data)
+
+        *self.texture_bindings[index].as_ref().unwrap()
     }
 
     fn emit_source_field_load(
@@ -806,16 +805,16 @@ impl<'a> NagaBuilder<'a> {
                         .ok_or(Error::MissingVertexAttributeData(reg_num))?,
                 )),
                 RegisterType::Varying => Ok((
-                    self.emit_varying_load(reg_num)?,
+                    self.emit_varying_load(reg_num),
                     VertexAttributeFormat::Float4,
                 )),
                 RegisterType::Constant => Ok((
-                    self.emit_const_register_load(reg_num)?,
+                    self.emit_const_register_load(reg_num),
                     // Constants are always a vec4<f32>
                     VertexAttributeFormat::Float4,
                 )),
                 RegisterType::Temporary => Ok({
-                    let temp = self.get_temporary_register(reg_num)?;
+                    let temp = self.get_temporary_register(reg_num);
                     (
                         self.evaluate_expr(Expression::Load { pointer: temp }),
                         VertexAttributeFormat::Float4,
@@ -909,7 +908,7 @@ impl<'a> NagaBuilder<'a> {
         };
 
         if extend_to_vec4 && source_type != VertexAttributeFormat::Float4 {
-            base_expr = source_type.extend_to_float4(base_expr, self)?;
+            base_expr = source_type.extend_to_float4(base_expr, self);
         }
 
         // This is a no-op swizzle - we can just return the base expression
@@ -941,8 +940,8 @@ impl<'a> NagaBuilder<'a> {
     fn emit_dest_store(&mut self, dest: &DestField, expr: Handle<Expression>) -> Result<()> {
         let base_expr = match dest.register_type {
             RegisterType::Output => self.dest,
-            RegisterType::Varying => self.get_varying_pointer(dest.reg_num as usize)?,
-            RegisterType::Temporary => self.get_temporary_register(dest.reg_num as usize)?,
+            RegisterType::Varying => self.get_varying_pointer(dest.reg_num as usize),
+            RegisterType::Temporary => self.get_temporary_register(dest.reg_num as usize),
             _ => {
                 return Err(Error::Unimplemented(format!(
                     "Unimplemented dest reg type: {dest:?}",
@@ -1140,7 +1139,7 @@ impl<'a> NagaBuilder<'a> {
                     right: vector,
                 });
 
-                let extended_out = out_size.extend_to_float4(multiply, self)?;
+                let extended_out = out_size.extend_to_float4(multiply, self);
 
                 self.emit_dest_store(dest, extended_out)?;
             }
@@ -1183,7 +1182,7 @@ impl<'a> NagaBuilder<'a> {
                 };
 
                 let texture_binding =
-                    self.emit_texture_load(texture_id as usize, sampler_field.dimension)?;
+                    self.emit_texture_load(texture_id as usize, sampler_field.dimension);
                 let tex = self.evaluate_expr(Expression::ImageSample {
                     image: texture_binding.texture_global_var,
                     sampler: texture_binding.sampler_global_var,
@@ -1345,7 +1344,7 @@ impl<'a> NagaBuilder<'a> {
                     arg2: None,
                     arg3: None,
                 });
-                let extended = VertexAttributeFormat::Float3.extend_to_float4(crs, self)?;
+                let extended = VertexAttributeFormat::Float3.extend_to_float4(crs, self);
                 self.emit_dest_store(dest, extended)?;
             }
             Opcode::Ife | Opcode::Ine | Opcode::Ifg | Opcode::Ifl => {
@@ -1626,7 +1625,7 @@ impl<'a> NagaBuilder<'a> {
         Ok(())
     }
 
-    fn finish(mut self) -> Result<Module> {
+    fn finish(mut self) -> Module {
         // We're consuming 'self', so just store store garbage here so that we can continue
         // to use methods on 'self'
         let return_ty = std::mem::replace(
@@ -1644,7 +1643,7 @@ impl<'a> NagaBuilder<'a> {
             binding: None,
         });
 
-        let return_expr = self.build_output_expr(return_ty)?;
+        let return_expr = self.build_output_expr(return_ty);
         self.push_statement(Statement::Return {
             value: Some(return_expr),
         });
@@ -1675,6 +1674,6 @@ impl<'a> NagaBuilder<'a> {
         };
 
         self.module.entry_points.push(entry_point);
-        Ok(self.module)
+        self.module
     }
 }

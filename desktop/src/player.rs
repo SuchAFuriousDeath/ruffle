@@ -311,16 +311,13 @@ impl ActivePlayer {
             .with_fs_commands(Box::new(DesktopFSCommandProvider {
                 event_loop: event_loop.clone(),
             }))
-            .with_ui(
-                DesktopUiBackend::new(
-                    window.clone(),
-                    event_loop.clone(),
-                    font_database,
-                    preferences,
-                    file_picker,
-                )
-                .expect("Couldn't create ui backend"),
-            )
+            .with_ui(DesktopUiBackend::new(
+                window.clone(),
+                event_loop.clone(),
+                font_database,
+                preferences,
+                file_picker,
+            ))
             .with_autoplay(true)
             .with_letterbox(opt.player.letterbox.unwrap_or(Letterbox::On))
             .with_max_execution_duration(opt.player.max_execution_duration.unwrap_or(Duration::MAX))

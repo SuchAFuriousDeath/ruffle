@@ -173,12 +173,14 @@ pub fn decompress_swf<'a, R: Read + 'a>(mut input: R) -> Result<SwfBuf> {
 }
 
 #[cfg(feature = "flate2")]
+#[allow(clippy::unnecessary_wraps)]
 fn make_zlib_reader<'a, R: Read + 'a>(input: R) -> Result<Box<dyn Read + 'a>> {
     use flate2::read::ZlibDecoder;
     Ok(Box::new(ZlibDecoder::new(input)))
 }
 
 #[cfg(not(feature = "flate2"))]
+#[allow(clippy::unnecessary_wraps)]
 fn make_zlib_reader<'a, R: Read + 'a>(_input: R) -> Result<Box<dyn Read + 'a>> {
     Err(Error::unsupported(
         "Support for Zlib compressed SWFs is not enabled.",

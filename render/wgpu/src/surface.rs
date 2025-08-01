@@ -226,8 +226,7 @@ impl Surface {
                         target.color_attachments(),
                         target.sample_count(),
                         &FilterSource::for_entire_texture(texture.texture()),
-                    )
-                    .expect("Failed to run PixelBender blend mode");
+                    );
                 }
                 Chunk::Blend(texture, ChunkBlendMode::Complex(blend_mode), needs_stencil) => {
                     let parent = match blend_mode {

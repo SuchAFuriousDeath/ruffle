@@ -354,6 +354,7 @@ impl CommandTarget {
         get_whole_frame_bind_group(&self.whole_frame_bind_group, descriptors, self.size)
     }
 
+    #[allow(clippy::unnecessary_wraps)] // It's more convenient to return an option here
     pub fn color_attachments(&self) -> Option<wgpu::RenderPassColorAttachment<'_>> {
         let mut load = wgpu::LoadOp::Load;
         if self.color_needs_clear.set(false).is_ok() {
@@ -375,6 +376,7 @@ impl CommandTarget {
         self.sample_count
     }
 
+    #[allow(clippy::unnecessary_wraps)] // It's more convenient to return an option here
     pub fn stencil_attachment(
         &self,
         descriptors: &Descriptors,

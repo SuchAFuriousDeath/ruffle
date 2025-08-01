@@ -614,10 +614,10 @@ impl<'gc> MovieClip<'gc> {
         self,
         context: &mut UpdateContext<'gc>,
         reader: &mut SwfStream<'_>,
-    ) -> Result<Option<Script<'gc>>, Error> {
+    ) -> Option<Script<'gc>> {
         if !context.root_swf.is_action_script_3() {
             tracing::warn!("DoABC tag with non-AVM2 root");
-            return Ok(None);
+            return None;
         }
 
         let data = reader.read_slice_to_end();
@@ -634,15 +634,15 @@ impl<'gc> MovieClip<'gc> {
                 domain,
                 self.movie(),
             ) {
-                Ok(res) => return Ok(res),
+                Ok(res) => return res,
                 Err(e) => {
                     tracing::warn!("Error loading ABC file: {e:?}");
-                    return Ok(None);
+                    return None;
                 }
             }
         }
 
-        Ok(None)
+        None
     }
 
     #[inline]
@@ -3384,7 +3384,9 @@ impl<'gc, 'a> MovieClipShared<'gc> {
     ) -> Result<(), Error> {
         let swf_button = reader.read_define_button_1()?;
 
-        self.define_button_any(context, swf_button)
+        self.define_button_any(context, swf_button);
+
+        Ok(())
     }
 
     #[inline]
@@ -3395,15 +3397,13 @@ impl<'gc, 'a> MovieClipShared<'gc> {
     ) -> Result<(), Error> {
         let swf_button = reader.read_define_button_2()?;
 
-        self.define_button_any(context, swf_button)
+        self.define_button_any(context, swf_button);
+
+        Ok(())
     }
 
     #[inline]
-    fn define_button_any(
-        &self,
-        context: &mut UpdateContext<'gc>,
-        swf_button: swf::Button<'a>,
-    ) -> Result<(), Error> {
+    fn define_button_any(&self, context: &mut UpdateContext<'gc>, swf_button: swf::Button<'a>) {
         let button = if self.swf.movie.is_action_script_3() {
             Character::Avm2Button(Avm2Button::from_swf_tag(
                 &swf_button,
@@ -3420,7 +3420,6 @@ impl<'gc, 'a> MovieClipShared<'gc> {
         };
         self.library_mut(context)
             .register_character(swf_button.id, button);
-        Ok(())
     }
 
     #[inline]
@@ -3756,6 +3755,7 @@ impl<'gc, 'a> MovieClipShared<'gc> {
     }
 
     #[inline]
+    #[allow(clippy::unnecessary_wraps)] // Having a result here makes it more convenient to call this method
     fn import_assets_load(
         &self,
         context: &mut UpdateContext<'gc>,
@@ -3946,6 +3946,7 @@ impl<'gc, 'a> MovieClipShared<'gc> {
     }
 
     #[inline]
+    #[allow(clippy::unnecessary_wraps)] // Having a result here makes it more convenient to call this method
     fn jpeg_tables(
         &self,
         context: &mut UpdateContext<'gc>,
@@ -3957,6 +3958,7 @@ impl<'gc, 'a> MovieClipShared<'gc> {
     }
 
     #[inline]
+    #[allow(clippy::unnecessary_wraps)] // Having a result here makes it more convenient to call this method
     fn show_frame(
         &self,
         #[allow(unused)] reader: &mut SwfStream<'a>,
@@ -3988,6 +3990,7 @@ impl<'gc, 'a> MovieClipShared<'gc> {
 
     /// Handles a DoAbc or DoAbc2 tag
     #[inline]
+    #[allow(clippy::unnecessary_wraps)] // Having a result here makes it more convenient to call this method
     fn preload_bytecode_tag(
         &self,
         tag_code: TagCode,
@@ -4033,6 +4036,7 @@ impl<'gc, 'a> MovieClipShared<'gc> {
 // Control tags
 impl<'gc, 'a> MovieClip<'gc> {
     #[inline]
+    #[allow(clippy::unnecessary_wraps)] // Having a result here makes it more convenient to call this method
     fn do_action(
         self,
         context: &mut UpdateContext<'gc>,
@@ -4083,7 +4087,7 @@ impl<'gc, 'a> MovieClip<'gc> {
         for (tag_code, abc) in eager_tags.abc_tags {
             let mut reader = abc.read_from(0);
             let eager_script = match tag_code {
-                TagCode::DoAbc => self.do_abc(context, &mut reader)?,
+                TagCode::DoAbc => self.do_abc(context, &mut reader),
                 TagCode::DoAbc2 => self.do_abc_2(context, &mut reader)?,
                 _ => unreachable!(),
             };
@@ -4316,6 +4320,7 @@ impl<'gc, 'a> MovieClip<'gc> {
     }
 
     #[inline]
+    #[allow(clippy::unnecessary_wraps)] // Having a result here makes it more convenient to call this method
     fn sound_stream_block(
         self,
         context: &mut UpdateContext<'gc>,

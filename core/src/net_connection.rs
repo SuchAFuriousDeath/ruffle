@@ -327,8 +327,8 @@ impl<'gc> NetConnections<'gc> {
         self.connections.get(handle).and_then(|c| c.protocol())
     }
 
-    pub fn get_uri(&self, handle: NetConnectionHandle) -> Option<String> {
-        self.connections.get(handle).and_then(|c| c.uri())
+    pub fn get_uri(&self, handle: NetConnectionHandle) -> Option<&str> {
+        self.connections.get(handle).map(|c| c.uri())
     }
 
     pub fn is_using_tls(&self, handle: NetConnectionHandle) -> Option<bool> {
@@ -399,10 +399,10 @@ impl NetConnection<'_> {
         }
     }
 
-    pub fn uri(&self) -> Option<String> {
+    pub fn uri(&self) -> &str {
         match &self.protocol {
-            NetConnectionProtocol::Local => Some("null".to_string()), // Yes, it's a string "null", not a real null.
-            NetConnectionProtocol::FlashRemoting(remoting) => Some(remoting.url.to_string()),
+            NetConnectionProtocol::Local => "null", // Yes, it's a string "null", not a real null.
+            NetConnectionProtocol::FlashRemoting(remoting) => &remoting.url,
         }
     }
 
