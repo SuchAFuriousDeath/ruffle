@@ -211,4 +211,29 @@ impl<'gc> TObject<'gc> for ByteArrayObject<'gc> {
 
         self.base().has_own_property(name)
     }
+
+    fn has_property_via_in(
+        self,
+        activation: &mut Activation<'_, 'gc>,
+        name: &Multiname<'gc>,
+    ) -> Result<bool, Error<'gc>> {
+        // See <https://bugzilla.mozilla.org/show_bug.cgi?id=558863>
+        // See <https://github.com/adobe/avmplus/blob/858d034a3bd3a54d9b70909386435cf4aec81d21/core/ByteArrayGlue.cpp#L2008>
+        if activation.caller_movie_or_root().version() < 11 {
+            if let Some(local_name) = name.local_name() {
+                if let Some(index) = ArrayObject::as_array_index(&local_name) {
+                    return Ok(index < self.0.storage.borrow().len());
+                }
+
+                return Err(crate::avm2::error::make_reference_error(
+                    activation,
+                    crate::avm2::error::ReferenceErrorCode::InvalidRead,
+                    name,
+                    self.instance_class(),
+                ));
+            }
+        }
+
+        Ok(self.has_property(name))
+    }
 }
