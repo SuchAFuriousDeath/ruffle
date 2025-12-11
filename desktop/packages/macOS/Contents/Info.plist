@@ -26,5 +26,76 @@
     </array>
     <key>NSAccentColorName</key>
     <string>RuffleOrange</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Shockwave Flash</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.macromedia.shockwave-flash</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>swf</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Flash Projector</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.microsoft.windows-executable</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>exe</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Ruffle Bundle</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>rs.ruffle.bundle</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>ruf</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>rs.ruffle.bundle</string>
+            <key>UTTypeDescription</key>
+            <string>Ruffle Bundle</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>ruf</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>

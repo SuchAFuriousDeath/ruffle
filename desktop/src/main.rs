@@ -13,6 +13,8 @@ mod custom_event;
 mod dbus;
 mod gui;
 mod log;
+#[cfg(target_os = "macos")]
+mod macos_delegate;
 mod player;
 mod preferences;
 #[cfg(feature = "tracy")]
@@ -180,7 +182,18 @@ fn main() -> Result<(), Error> {
 
     subscriber.init();
 
+    #[cfg(target_os = "macos")]
+    let macos_preferences = preferences.clone();
+
     let result = App::new(preferences).and_then(|(mut app, event_loop)| {
+        // Register macOS application delegate for file associations
+        // This must be done before running the event loop
+        #[cfg(target_os = "macos")]
+        {
+            let proxy = event_loop.create_proxy();
+            macos_delegate::register_delegate(proxy, macos_preferences);
+        }
+
         event_loop.run_app(&mut app).context("Event loop failure")
     });
 
