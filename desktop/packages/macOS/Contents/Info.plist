@@ -26,5 +26,74 @@
     </array>
     <key>NSAccentColorName</key>
     <string>RuffleOrange</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Shockwave Flash Movie</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.macromedia.shockwave-flash</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Ruffle Bundle</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>rs.ruffle.bundle</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.macromedia.shockwave-flash</string>
+            <key>UTTypeDescription</key>
+            <string>Shockwave Flash Movie</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>swf</string>
+                </array>
+                <key>public.mime-type</key>
+                <array>
+                    <string>application/x-shockwave-flash</string>
+                    <string>application/vnd.adobe.flash-movie</string>
+                </array>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>rs.ruffle.bundle</string>
+            <key>UTTypeDescription</key>
+            <string>Ruffle Bundle</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>ruf</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>

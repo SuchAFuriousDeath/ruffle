@@ -418,6 +418,10 @@ impl App {
         let event_loop_proxy = event_loop.create_proxy();
         let runtime = tokio::runtime::Runtime::new()?;
 
+        // Inject file open handler into winit's delegate (must be after EventLoop creation)
+        #[cfg(target_os = "macos")]
+        crate::macos::setup_file_open_handler(event_loop_proxy.clone(), preferences.clone());
+
         Ok((
             Self {
                 main_window: None,
