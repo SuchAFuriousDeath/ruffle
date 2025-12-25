@@ -1,5 +1,5 @@
 use crate::avm2::bytearray::Endian;
-use crate::avm2::error::make_error_2162;
+use crate::avm2::error::{make_error_2162, make_error_2165};
 use crate::avm2::globals::slots::{
     flash_display_shader as shader_slots, flash_display_shader_input as shader_input_slots,
     flash_display_shader_job as shader_job_slots,
@@ -18,7 +18,9 @@ use ruffle_render::pixel_bender::{
     PixelBenderParam, PixelBenderParamQualifier, PixelBenderShaderHandle, PixelBenderType,
     OUT_COORD_NAME,
 };
-use ruffle_render::pixel_bender_support::{ImageInputTexture, PixelBenderShaderArgument};
+use ruffle_render::pixel_bender_support::{
+    FloatPixelData, ImageInputTexture, PixelBenderShaderArgument,
+};
 
 pub fn get_shader_args<'gc>(
     shader_obj: Object<'gc>,
@@ -134,27 +136,65 @@ pub fn get_shader_args<'gc>(
                                 bitmap.bitmap_handle(activation.gc(), activation.context.renderer),
                             )
                         } else if let Some(byte_array) = input.as_bytearray() {
-                            let expected_len = (width * height * input_channels) as usize
-                                * std::mem::size_of::<f32>();
-                            assert_eq!(byte_array.len(), expected_len);
                             assert_eq!(byte_array.endian(), Endian::Little);
-                            ImageInputTexture::Bytes {
+
+                            let num_pixels = (width * height) as usize;
+
+                            let (bytes, _trailing) = byte_array.bytes().as_chunks::<4>();
+                            let floats = bytemuck::cast_slice::<[u8; 4], f32>(bytes);
+
+                            let err = || make_error_2165(activation, name);
+                            let data = match input_channels {
+                                1 => FloatPixelData::R(
+                                    collect_floats::<1>(floats, num_pixels).ok_or_else(err)?,
+                                ),
+                                2 => FloatPixelData::Rg(
+                                    collect_floats::<2>(floats, num_pixels).ok_or_else(err)?,
+                                ),
+                                3 => FloatPixelData::Rgb(
+                                    collect_floats::<3>(floats, num_pixels).ok_or_else(err)?,
+                                ),
+                                4 => FloatPixelData::Rgba(
+                                    collect_floats::<4>(floats, num_pixels).ok_or_else(err)?,
+                                ),
+                                _ => panic!("Unexpected number of channels: {input_channels}"),
+                            };
+
+                            ImageInputTexture::Floats {
                                 width,
                                 height,
-                                channels: input_channels,
-                                bytes: byte_array.read_at(0, byte_array.len()).unwrap().to_vec(),
+                                data,
                             }
                         } else if let Some(vector) = input.as_vector_storage() {
-                            let expected_len = (width * height * input_channels) as usize;
-                            assert_eq!(vector.length(), expected_len);
-                            ImageInputTexture::Bytes {
+                            let num_pixels = (width * height) as usize;
+
+                            let values = vector.storage().as_ref();
+
+                            let err = || make_error_2165(activation, name);
+                            let data = match input_channels {
+                                1 => FloatPixelData::R(
+                                    collect_values_into_floats::<1>(values, num_pixels)
+                                        .ok_or_else(err)?,
+                                ),
+                                2 => FloatPixelData::Rg(
+                                    collect_values_into_floats::<2>(values, num_pixels)
+                                        .ok_or_else(err)?,
+                                ),
+                                3 => FloatPixelData::Rgb(
+                                    collect_values_into_floats::<3>(values, num_pixels)
+                                        .ok_or_else(err)?,
+                                ),
+                                4 => FloatPixelData::Rgba(
+                                    collect_values_into_floats::<4>(values, num_pixels)
+                                        .ok_or_else(err)?,
+                                ),
+                                _ => panic!("Unexpected number of channels: {input_channels}"),
+                            };
+
+                            ImageInputTexture::Floats {
                                 width,
                                 height,
-                                channels: input_channels,
-                                bytes: vector
-                                    .iter()
-                                    .flat_map(|val| (val.as_f64() as f32).to_le_bytes())
-                                    .collect(),
+                                data,
                             }
                         } else {
                             panic!("Unexpected input object {input:?}");
@@ -176,6 +216,27 @@ pub fn get_shader_args<'gc>(
         })
         .collect::<Result<Vec<PixelBenderShaderArgument<'_>>, Error<'gc>>>()?;
     Ok((shader_handle.clone(), args))
+}
+
+fn collect_floats<const N: usize>(floats: &[f32], num_pixels: usize) -> Option<Vec<[f32; N]>> {
+    let (floats, _trailing) = floats.as_chunks::<N>();
+    let vec = floats.get(..num_pixels)?.to_vec();
+
+    Some(vec)
+}
+
+fn collect_values_into_floats<'gc, const N: usize>(
+    values: &[Value<'gc>],
+    num_pixels: usize,
+) -> Option<Vec<[f32; N]>> {
+    let (chunks, _trailing) = values.as_chunks::<N>();
+    let vec = chunks
+        .get(..num_pixels)?
+        .iter()
+        .map(|vals| vals.map(|val| val.as_f64() as f32))
+        .collect();
+
+    Some(vec)
 }
 
 /// Implements `ShaderJob.start`.
