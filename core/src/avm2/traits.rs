@@ -12,9 +12,7 @@ use crate::avm2::Multiname;
 use crate::avm2::QName;
 use bitflags::bitflags;
 use gc_arena::{Collect, Gc};
-use swf::avm2::types::{
-    DefaultValue as AbcDefaultValue, Trait as AbcTrait, TraitKind as AbcTraitKind,
-};
+use swf::avm2::types::{DefaultValue as AbcDefaultValue, Trait as AbcTrait, TraitKind as AbcTraitKind};
 
 bitflags! {
     /// All attributes a trait can have.

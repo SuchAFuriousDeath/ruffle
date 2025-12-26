@@ -17,9 +17,7 @@ use crate::binary_data::BinaryData;
 use crate::character::{BitmapCharacter, Character, CompressedBitmap};
 use crate::context::{ActionType, RenderContext, UpdateContext};
 use crate::display_object::container::{dispatch_removed_event, ChildContainer};
-use crate::display_object::interactive::{
-    InteractiveObject, InteractiveObjectBase, TInteractiveObject,
-};
+use crate::display_object::interactive::{InteractiveObject, InteractiveObjectBase, TInteractiveObject};
 use crate::display_object::{
     Avm1Button, Avm1TextFieldBinding, Avm2Button, DisplayObjectBase, DisplayObjectPtr, EditText,
     Graphic, MorphShape, Text, Video,
@@ -523,7 +521,7 @@ impl<'gc> MovieClip<'gc> {
                 TagCode::DefineSound => shared.define_sound(context, reader),
                 TagCode::DefineVideoStream => shared.define_video_stream(context, reader),
                 TagCode::DefineSprite => {
-                    return shared.define_sprite(context, reader, tag_len, chunk_limit)
+                    return shared.define_sprite(context, reader, tag_len, chunk_limit);
                 }
                 TagCode::DefineText => shared.define_text(context, reader, 1),
                 TagCode::DefineText2 => shared.define_text(context, reader, 2),
@@ -4262,7 +4260,11 @@ impl<'gc, 'a> MovieClip<'gc> {
                                         activation.gc(),
                                     );
                                 } else {
-                                    tracing::error!("Associated class {:?} for symbol {} must extend flash.display.Bitmap or BitmapData, does neither", class_object.inner_class_definition().name(), id);
+                                    tracing::error!(
+                                        "Associated class {:?} for symbol {} must extend flash.display.Bitmap or BitmapData, does neither",
+                                        class_object.inner_class_definition().name(),
+                                        id
+                                    );
                                 }
                             }
                             None => {

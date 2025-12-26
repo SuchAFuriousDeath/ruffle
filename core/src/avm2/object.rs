@@ -98,18 +98,12 @@ pub use crate::avm2::object::file_reference_object::{
 };
 pub use crate::avm2::object::font_object::{font_allocator, FontObject, FontObjectWeak};
 pub use crate::avm2::object::function_object::{FunctionObject, FunctionObjectWeak};
-pub use crate::avm2::object::index_buffer_3d_object::{
-    IndexBuffer3DObject, IndexBuffer3DObjectWeak,
-};
-pub use crate::avm2::object::loaderinfo_object::{
-    LoaderInfoObject, LoaderInfoObjectWeak, LoaderStream,
-};
+pub use crate::avm2::object::index_buffer_3d_object::{IndexBuffer3DObject, IndexBuffer3DObjectWeak};
+pub use crate::avm2::object::loaderinfo_object::{LoaderInfoObject, LoaderInfoObjectWeak, LoaderStream};
 pub use crate::avm2::object::local_connection_object::{
     local_connection_allocator, LocalConnectionObject, LocalConnectionObjectWeak,
 };
-pub use crate::avm2::object::message_channel_object::{
-    MessageChannelObject, MessageChannelObjectWeak,
-};
+pub use crate::avm2::object::message_channel_object::{MessageChannelObject, MessageChannelObjectWeak};
 pub use crate::avm2::object::namespace_object::{NamespaceObject, NamespaceObjectWeak};
 pub use crate::avm2::object::net_connection_object::{
     net_connection_allocator, NetConnectionObject, NetConnectionObjectWeak,
@@ -128,9 +122,7 @@ pub use crate::avm2::object::script_object::{
     get_dynamic_property, scriptobject_allocator, ScriptObject, ScriptObjectData,
     ScriptObjectHandle, ScriptObjectWeak, ScriptObjectWrapper,
 };
-pub use crate::avm2::object::security_domain_object::{
-    SecurityDomainObject, SecurityDomainObjectWeak,
-};
+pub use crate::avm2::object::security_domain_object::{SecurityDomainObject, SecurityDomainObjectWeak};
 pub use crate::avm2::object::shader_data_object::{
     shader_data_allocator, ShaderDataObject, ShaderDataObjectWeak,
 };
@@ -155,9 +147,7 @@ pub use crate::avm2::object::textformat_object::{
 };
 pub use crate::avm2::object::texture_object::{TextureObject, TextureObjectWeak};
 pub use crate::avm2::object::vector_object::{vector_allocator, VectorObject, VectorObjectWeak};
-pub use crate::avm2::object::vertex_buffer_3d_object::{
-    VertexBuffer3DObject, VertexBuffer3DObjectWeak,
-};
+pub use crate::avm2::object::vertex_buffer_3d_object::{VertexBuffer3DObject, VertexBuffer3DObjectWeak};
 pub use crate::avm2::object::worker_domain_object::{WorkerDomainObject, WorkerDomainObjectWeak};
 pub use crate::avm2::object::worker_object::{WorkerObject, WorkerObjectWeak};
 pub use crate::avm2::object::xml_list_object::{

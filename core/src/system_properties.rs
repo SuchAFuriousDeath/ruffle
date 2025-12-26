@@ -304,19 +304,11 @@ impl SystemProperties {
     }
 
     fn encode_capability(&self, cap: SystemCapabilities) -> &str {
-        if self.has_capability(cap) {
-            "t"
-        } else {
-            "f"
-        }
+        if self.has_capability(cap) { "t" } else { "f" }
     }
 
     fn encode_not_capability(&self, cap: SystemCapabilities) -> &str {
-        if self.has_capability(cap) {
-            "f"
-        } else {
-            "t"
-        }
+        if self.has_capability(cap) { "f" } else { "t" }
     }
 
     fn encode_string(&self, s: &str) -> String {

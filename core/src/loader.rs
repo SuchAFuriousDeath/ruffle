@@ -17,9 +17,7 @@ use crate::avm2::{
     Object as Avm2Object,
 };
 use crate::avm2_stub_method_context;
-use crate::backend::navigator::{
-    ErrorResponse, FetchReason, OwnedFuture, Request, SuccessResponse,
-};
+use crate::backend::navigator::{ErrorResponse, FetchReason, OwnedFuture, Request, SuccessResponse};
 use crate::backend::ui::DialogResultFuture;
 use crate::bitmap::bitmap_data::BitmapData;
 use crate::bitmap::bitmap_data::Color;

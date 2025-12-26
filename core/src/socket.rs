@@ -318,7 +318,8 @@ impl<'gc> Sockets<'gc> {
                                 XmlSocket::cast(target.into()).expect("target should be XmlSocket");
 
                             // Check if the current received packet includes a null byte.
-                            if let Some((index, _)) = data.iter().enumerate().find(|(_, &b)| b == 0)
+                            if let Some((index, _)) =
+                                data.iter().enumerate().find(|&(_, &b)| b == 0)
                             {
                                 // Received payload contains a null byte, so take data from sockets read buffer and append message data ontop.
                                 let mut buffer = xml_socket
@@ -346,7 +347,7 @@ impl<'gc> Sockets<'gc> {
 
                                     // Check if we have another null byte in the same payload.
                                     if let Some((index, _)) =
-                                        data.iter().enumerate().find(|(_, &b)| b == 0)
+                                        data.iter().enumerate().find(|&(_, &b)| b == 0)
                                     {
                                         // Because data in XmlSocket::read_buffer() has already been consumed
                                         // we do not need to access it again.

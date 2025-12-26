@@ -13,9 +13,7 @@ use crate::display_object::edit_text::EditText;
 use crate::display_object::loader_display::LoaderDisplay;
 use crate::display_object::movie_clip::MovieClip;
 use crate::display_object::stage::Stage;
-use crate::display_object::{
-    DisplayObject, DisplayObjectBase, TDisplayObject, TDisplayObjectContainer,
-};
+use crate::display_object::{DisplayObject, DisplayObjectBase, TDisplayObject, TDisplayObjectContainer};
 use crate::events::{ClipEvent, ClipEventResult, MouseButton};
 use crate::string::AvmString;
 use bitflags::bitflags;

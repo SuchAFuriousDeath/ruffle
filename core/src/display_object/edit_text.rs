@@ -11,9 +11,7 @@ use crate::avm2::object::{
 use crate::avm2::{Activation as Avm2Activation, Avm2};
 use crate::backend::ui::MouseCursor;
 use crate::context::{RenderContext, UpdateContext};
-use crate::display_object::interactive::{
-    InteractiveObject, InteractiveObjectBase, TInteractiveObject,
-};
+use crate::display_object::interactive::{InteractiveObject, InteractiveObjectBase, TInteractiveObject};
 use crate::display_object::{Avm1TextFieldBinding, DisplayObjectBase};
 use crate::events::{
     ClipEvent, ClipEventResult, ImeCursorArea, ImeEvent, ImeNotification, ImePurpose,

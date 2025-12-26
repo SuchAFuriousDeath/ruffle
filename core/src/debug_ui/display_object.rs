@@ -1510,13 +1510,9 @@ impl DisplayObjectWindow {
                         .library
                         .library_for_movie(object.movie())
                         .and_then(|l| {
-                            l.export_characters().iter().find_map(|(k, v)| {
-                                if *v == id {
-                                    Some(k)
-                                } else {
-                                    None
-                                }
-                            })
+                            l.export_characters()
+                                .iter()
+                                .find_map(|(k, v)| if *v == id { Some(k) } else { None })
                         })
                 {
                     ui.label(format!("{id} {name}"));

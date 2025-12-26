@@ -3,9 +3,7 @@ use crate::avm2::StageObject as Avm2StageObject;
 use crate::backend::audio::AudioManager;
 use crate::backend::ui::MouseCursor;
 use crate::context::{ActionType, RenderContext, UpdateContext};
-use crate::display_object::container::{
-    dispatch_added_event, dispatch_removed_event, ChildContainer,
-};
+use crate::display_object::container::{dispatch_added_event, dispatch_removed_event, ChildContainer};
 use crate::display_object::interactive::{
     Avm2MousePick, InteractiveObject, InteractiveObjectBase, TInteractiveObject,
 };

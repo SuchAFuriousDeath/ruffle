@@ -23,9 +23,7 @@ use crate::compatibility_rules::CompatibilityRules;
 use crate::compatibility_rules::UrlRewriteStage;
 use crate::config::Letterbox;
 use crate::context::{ActionQueue, ActionType, RenderContext, UpdateContext};
-use crate::context_menu::{
-    BuiltInItemFlags, ContextMenuCallback, ContextMenuItem, ContextMenuState,
-};
+use crate::context_menu::{BuiltInItemFlags, ContextMenuCallback, ContextMenuItem, ContextMenuState};
 use crate::display_object::Avm2MousePick;
 use crate::display_object::{
     EditText, InteractiveObject, Stage, StageAlign, StageDisplayState, StageScaleMode,
@@ -712,7 +710,7 @@ impl Player {
     pub fn run_context_menu_callback(&mut self, index: usize) {
         self.mutate_with_update_context(|context| {
             let menu = &context.current_context_menu;
-            if let Some(ref menu) = menu {
+            if let Some(menu) = menu {
                 match menu.callback(index) {
                     ContextMenuCallback::Avm1 { item, callback } => {
                         Self::run_context_menu_custom_callback(*item, *callback, context)

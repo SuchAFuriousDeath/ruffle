@@ -8,9 +8,7 @@ use crate::avm2::value::Value;
 use crate::display_object::{Avm2Button, ButtonTracking, TDisplayObject};
 use swf::ButtonState;
 
-pub use crate::avm2::globals::flash::media::sound_mixer::{
-    get_sound_transform, set_sound_transform,
-};
+pub use crate::avm2::globals::flash::media::sound_mixer::{get_sound_transform, set_sound_transform};
 use crate::avm2::parameters::ParametersExt;
 
 pub fn simple_button_allocator<'gc>(

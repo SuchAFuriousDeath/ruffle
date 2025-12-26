@@ -11,9 +11,7 @@ use crate::debug_ui::avm1::Avm1ObjectWindow;
 use crate::debug_ui::avm2::Avm2ObjectWindow;
 use crate::debug_ui::display_object::{DisplayObjectSearchWindow, DisplayObjectWindow};
 use crate::debug_ui::domain::DomainListWindow;
-use crate::debug_ui::handle::{
-    AVM1ObjectHandle, AVM2ObjectHandle, DisplayObjectHandle, DomainHandle,
-};
+use crate::debug_ui::handle::{AVM1ObjectHandle, AVM2ObjectHandle, DisplayObjectHandle, DomainHandle};
 use crate::debug_ui::movie::{MovieListWindow, MovieWindow};
 use crate::display_object::TDisplayObject;
 use crate::prelude::DisplayObject;

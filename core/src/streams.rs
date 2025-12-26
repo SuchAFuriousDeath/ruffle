@@ -10,9 +10,7 @@ use crate::avm2::{
     Activation as Avm2Activation, Avm2, Error as Avm2Error, EventObject as Avm2EventObject,
     FlvValueAvm2Ext, FunctionArgs, Object as Avm2Object, Value as Avm2Value,
 };
-use crate::backend::audio::{
-    DecodeError, SoundInstanceHandle, SoundStreamInfo, SoundStreamWrapping,
-};
+use crate::backend::audio::{DecodeError, SoundInstanceHandle, SoundStreamInfo, SoundStreamWrapping};
 use crate::backend::navigator::Request;
 use crate::context::UpdateContext;
 use crate::display_object::{MovieClip, TDisplayObject};
@@ -1073,9 +1071,7 @@ impl<'gc> NetStream<'gc> {
         }
 
         match &mut *source.stream_type.borrow_mut() {
-            Some(NetStreamType::Flv {
-                ref mut frame_id, ..
-            }) => *frame_id += 1,
+            Some(NetStreamType::Flv { frame_id, .. }) => *frame_id += 1,
             _ => unreachable!(),
         };
     }

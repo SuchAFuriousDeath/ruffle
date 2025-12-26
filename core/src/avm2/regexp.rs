@@ -361,7 +361,7 @@ impl<'gc> RegExp<'gc> {
                 storage.push(context.strings.substring(text, c.clone()).into());
                 if storage.length() >= limit {
                     break; // Intentional bug to match Flash.
-                           // Causes adding parts past limit.
+                    // Causes adding parts past limit.
                 }
             }
 

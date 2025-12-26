@@ -4,9 +4,7 @@ use crate::avm1::globals::bitmap_filter;
 use crate::avm1::object::NativeObject;
 use crate::avm1::property_decl::{DeclContext, StaticDeclarations, SystemClass};
 use crate::avm1::{globals, ArrayBuilder, Object, Value};
-use crate::display_object::{
-    AutoSizeMode, EditText, TDisplayObject, TInteractiveObject, TextSelection,
-};
+use crate::display_object::{AutoSizeMode, EditText, TDisplayObject, TInteractiveObject, TextSelection};
 use crate::html::TextFormat;
 use crate::string::{AvmString, WStr};
 use gc_arena::Gc;

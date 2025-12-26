@@ -113,8 +113,16 @@ fn constructor<'gc>(
             for (arg, value) in args.iter().zip(&mut values) {
                 *value = arg.coerce_to_f64(activation)?;
             }
-            let [red_multiplier, green_multiplier, blue_multiplier, alpha_multiplier, red_offset, green_offset, blue_offset, alpha_offset] =
-                values;
+            let [
+                red_multiplier,
+                green_multiplier,
+                blue_multiplier,
+                alpha_multiplier,
+                red_offset,
+                green_offset,
+                blue_offset,
+                alpha_offset,
+            ] = values;
             ColorTransformObject {
                 red_multiplier: Cell::new(red_multiplier),
                 green_multiplier: Cell::new(green_multiplier),
@@ -226,15 +234,24 @@ fn to_string<'gc>(
     this: Object<'gc>,
     _args: &[Value<'gc>],
 ) -> Result<Value<'gc>, Error<'gc>> {
-    let formatted = format!("(redMultiplier={}, greenMultiplier={}, blueMultiplier={}, alphaMultiplier={}, redOffset={}, greenOffset={}, blueOffset={}, alphaOffset={})",
-            this.get(istr!("redMultiplier"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("greenMultiplier"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("blueMultiplier"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("alphaMultiplier"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("redOffset"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("greenOffset"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("blueOffset"), activation)?.coerce_to_string(activation)?,
-            this.get(istr!("alphaOffset"), activation)?.coerce_to_string(activation)?
+    let formatted = format!(
+        "(redMultiplier={}, greenMultiplier={}, blueMultiplier={}, alphaMultiplier={}, redOffset={}, greenOffset={}, blueOffset={}, alphaOffset={})",
+        this.get(istr!("redMultiplier"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("greenMultiplier"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("blueMultiplier"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("alphaMultiplier"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("redOffset"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("greenOffset"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("blueOffset"), activation)?
+            .coerce_to_string(activation)?,
+        this.get(istr!("alphaOffset"), activation)?
+            .coerce_to_string(activation)?
     );
 
     Ok(AvmString::new_utf8(activation.gc(), formatted).into())
