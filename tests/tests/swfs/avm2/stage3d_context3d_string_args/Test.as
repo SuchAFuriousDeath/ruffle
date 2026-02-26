@@ -26,6 +26,7 @@ package {
 			testCreateTexture(ctx);
 			testCreateCubeTexture(ctx);
 			testCreateRectangleTexture(ctx);
+			testNullUndefined(ctx);
 
 			trace("Done");
 		}
@@ -527,6 +528,37 @@ package {
 			tryCall("filter 'garbage'", function():void {
 				ctx.setSamplerStateAt(0, "clamp", "garbage", "mipnone");
 			});
+
+			// -- Valid mipfilter values --
+			tryCall("mipfilter 'miplinear'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "miplinear");
+			});
+			tryCall("mipfilter 'mipnearest'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "mipnearest");
+			});
+			tryCall("mipfilter 'mipnone'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "mipnone");
+			});
+
+			// -- Invalid mipfilter --
+			tryCall("mipfilter 'Miplinear'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "Miplinear");
+			});
+			tryCall("mipfilter 'MIPLINEAR'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "MIPLINEAR");
+			});
+			tryCall("mipfilter 'MipNone'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "MipNone");
+			});
+			tryCall("mipfilter 'mipNone'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "mipNone");
+			});
+			tryCall("mipfilter 'MIPNONE'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "MIPNONE");
+			});
+			tryCall("mipfilter 'garbage'", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", "garbage");
+			});
 		}
 
 		// ==========================================
@@ -616,6 +648,65 @@ package {
 			tryCall("textureFormat 'garbage'", function():void {
 				ctx.createRectangleTexture(64, 64, "garbage", false);
 			});
+		}
+
+		// ==========================================
+		// null and undefined for string enum parameters
+		// ==========================================
+		private function testNullUndefined(ctx:Context3D):void {
+			trace("=== null and undefined ===");
+
+			var vb = ctx.createVertexBuffer(3, 4);
+			var undef = undefined;
+
+			// -- setCulling --
+			tryCall("setCulling(null)", function():void {
+				ctx.setCulling(null);
+			});
+			tryCall("setCulling(undefined)", function():void {
+				ctx.setCulling(undef);
+			});
+
+			// -- setBlendFactors --
+			tryCall("setBlendFactors(null, 'zero')", function():void {
+				ctx.setBlendFactors(null, "zero");
+			});
+			tryCall("setBlendFactors('one', null)", function():void {
+				ctx.setBlendFactors("one", null);
+			});
+
+			// -- setDepthTest --
+			tryCall("setDepthTest(true, null)", function():void {
+				ctx.setDepthTest(true, null);
+			});
+			tryCall("setDepthTest(true, undefined)", function():void {
+				ctx.setDepthTest(true, undef);
+			});
+
+			// -- setSamplerStateAt --
+			tryCall("setSamplerStateAt wrap=null", function():void {
+				ctx.setSamplerStateAt(0, null, "linear", "mipnone");
+			});
+			tryCall("setSamplerStateAt filter=null", function():void {
+				ctx.setSamplerStateAt(0, "clamp", null, "mipnone");
+			});
+			tryCall("setSamplerStateAt mipfilter=null", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", null);
+			});
+			tryCall("setSamplerStateAt mipfilter=undefined", function():void {
+				ctx.setSamplerStateAt(0, "clamp", "linear", undef);
+			});
+
+			// -- createTexture --
+			tryCall("createTexture format=null", function():void {
+				ctx.createTexture(64, 64, null, false, 0);
+			});
+			tryCall("createTexture format=undefined", function():void {
+				ctx.createTexture(64, 64, undef, false, 0);
+			});
+
+			// Clean up
+			ctx.setVertexBufferAt(0, null, 0, "float4");
 		}
 	}
 }

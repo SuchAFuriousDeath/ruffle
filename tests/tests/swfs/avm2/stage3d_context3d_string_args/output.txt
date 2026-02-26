@@ -134,6 +134,15 @@ filter 'Linear': ArgumentError: Error #2008: Parameter filter must be one of the
 filter 'LINEAR': ArgumentError: Error #2008: Parameter filter must be one of the accepted values.
 filter 'Nearest': ArgumentError: Error #2008: Parameter filter must be one of the accepted values.
 filter 'garbage': ArgumentError: Error #2008: Parameter filter must be one of the accepted values.
+mipfilter 'miplinear': OK
+mipfilter 'mipnearest': OK
+mipfilter 'mipnone': OK
+mipfilter 'Miplinear': ArgumentError: Error #2008: Parameter mipfilter must be one of the accepted values.
+mipfilter 'MIPLINEAR': ArgumentError: Error #2008: Parameter mipfilter must be one of the accepted values.
+mipfilter 'MipNone': ArgumentError: Error #2008: Parameter mipfilter must be one of the accepted values.
+mipfilter 'mipNone': ArgumentError: Error #2008: Parameter mipfilter must be one of the accepted values.
+mipfilter 'MIPNONE': ArgumentError: Error #2008: Parameter mipfilter must be one of the accepted values.
+mipfilter 'garbage': ArgumentError: Error #2008: Parameter mipfilter must be one of the accepted values.
 === createTexture ===
 textureFormat 'bgra': OK
 textureFormat 'compressed': OK
@@ -155,4 +164,17 @@ textureFormat 'bgra': OK
 textureFormat 'Bgra': ArgumentError: Error #2008: Parameter textureFormat must be one of the accepted values.
 textureFormat 'BGRA': ArgumentError: Error #2008: Parameter textureFormat must be one of the accepted values.
 textureFormat 'garbage': ArgumentError: Error #2008: Parameter textureFormat must be one of the accepted values.
+=== null and undefined ===
+setCulling(null): TypeError: Error #2007: Parameter triangleFaceToCull must be non-null.
+setCulling(undefined): TypeError: Error #2007: Parameter triangleFaceToCull must be non-null.
+setBlendFactors(null, 'zero'): TypeError: Error #2007: Parameter sourceFactor must be non-null.
+setBlendFactors('one', null): TypeError: Error #2007: Parameter destinationFactor must be non-null.
+setDepthTest(true, null): TypeError: Error #2007: Parameter passCompareMode must be non-null.
+setDepthTest(true, undefined): TypeError: Error #2007: Parameter passCompareMode must be non-null.
+setSamplerStateAt wrap=null: TypeError: Error #2007: Parameter wrap must be non-null.
+setSamplerStateAt filter=null: TypeError: Error #2007: Parameter filter must be non-null.
+setSamplerStateAt mipfilter=null: TypeError: Error #2007: Parameter mipfilter must be non-null.
+setSamplerStateAt mipfilter=undefined: TypeError: Error #2007: Parameter mipfilter must be non-null.
+createTexture format=null: TypeError: Error #2007: Parameter textureFormat must be non-null.
+createTexture format=undefined: TypeError: Error #2007: Parameter textureFormat must be non-null.
 Done
