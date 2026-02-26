@@ -1,8 +1,8 @@
 //! Object representation for Texture3D objects
 
 use crate::avm2::activation::Activation;
+use crate::avm2::object::TObject;
 use crate::avm2::object::script_object::ScriptObjectData;
-use crate::avm2::object::{Object, TObject};
 use gc_arena::{Collect, Gc, GcWeak};
 use ruffle_common::utils::HasPrefixField;
 use ruffle_render::backend::{Context3DTextureFormat, Texture};
@@ -25,7 +25,7 @@ impl<'gc> TextureObject<'gc> {
         handle: Rc<dyn Texture>,
         original_format: Context3DTextureFormat,
         class: ClassObject<'gc>,
-    ) -> Object<'gc> {
+    ) -> TextureObject<'gc> {
         TextureObject(Gc::new(
             activation.gc(),
             TextureObjectData {
@@ -35,7 +35,6 @@ impl<'gc> TextureObject<'gc> {
                 handle,
             },
         ))
-        .into()
     }
 
     pub fn original_format(self) -> Context3DTextureFormat {

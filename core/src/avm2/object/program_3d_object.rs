@@ -1,8 +1,8 @@
 //! Object representation for VertexBuffer3D objects
 
 use crate::avm2::activation::Activation;
+use crate::avm2::object::TObject;
 use crate::avm2::object::script_object::ScriptObjectData;
-use crate::avm2::object::{Object, TObject};
 use gc_arena::{Collect, Gc, GcWeak};
 use ruffle_common::utils::HasPrefixField;
 use ruffle_render::backend::ShaderModule;
@@ -23,7 +23,7 @@ impl<'gc> Program3DObject<'gc> {
     pub fn from_context(
         activation: &mut Activation<'_, 'gc>,
         context3d: Context3DObject<'gc>,
-    ) -> Object<'gc> {
+    ) -> Program3DObject<'gc> {
         let class = activation.avm2().classes().program3d;
         let base = ScriptObjectData::new(class);
 
@@ -35,7 +35,6 @@ impl<'gc> Program3DObject<'gc> {
                 shader_module_handle: RefCell::new(None),
             },
         ))
-        .into()
     }
 
     pub fn shader_module_handle(&self) -> &RefCell<Option<Rc<dyn ShaderModule>>> {

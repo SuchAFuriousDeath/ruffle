@@ -1,8 +1,8 @@
 //! Object representation for IndexBuffer3D objects
 
 use crate::avm2::activation::Activation;
+use crate::avm2::object::TObject;
 use crate::avm2::object::script_object::ScriptObjectData;
-use crate::avm2::object::{Object, TObject};
 use gc_arena::{Collect, Gc, GcWeak};
 use ruffle_common::utils::HasPrefixField;
 use ruffle_render::backend::IndexBuffer;
@@ -23,7 +23,7 @@ impl<'gc> IndexBuffer3DObject<'gc> {
         activation: &mut Activation<'_, 'gc>,
         context3d: Context3DObject<'gc>,
         handle: Box<dyn IndexBuffer>,
-    ) -> Object<'gc> {
+    ) -> IndexBuffer3DObject<'gc> {
         let class = activation.avm2().classes().indexbuffer3d;
 
         IndexBuffer3DObject(Gc::new(
@@ -35,7 +35,6 @@ impl<'gc> IndexBuffer3DObject<'gc> {
                 count: Cell::new(0),
             },
         ))
-        .into()
     }
 
     pub fn count(self) -> usize {

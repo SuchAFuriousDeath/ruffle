@@ -347,6 +347,165 @@ pub fn istr(item: TokenStream) -> TokenStream {
     })
 }
 
+/// Attribute macro for defining AVM2 native methods on an impl block.
+///
+/// Methods take `self` as a typed receiver and typed parameters. The macro
+/// emits the original impl block (so methods can be called directly from Rust)
+/// and generates standalone `pub fn` wrappers matching the `NativeMethodImpl`
+/// signature that extract `self` and args via `NativeArg`, call the method,
+/// and convert the return value via `NativeReturn`.
+///
+/// The special `activation` parameter is passed through and not extracted
+/// from `args`. Use `#[name = "asName"]` on parameters to specify the
+/// ActionScript parameter name for error messages.
+///
+/// Usage:
+/// ```ignore
+/// #[native_methods]
+/// impl<'gc> Context3DObject<'gc> {
+///     fn set_culling(
+///         self,
+///         activation: &mut Activation<'_, 'gc>,
+///         #[name = "triangleFaceToCull"] culling: Context3DTriangleFace,
+///     ) -> Result<(), Error<'gc>> {
+///         self.set_culling(culling);
+///         Ok(())
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn native_methods(_args: TokenStream, item: TokenStream) -> TokenStream {
+    let mut impl_block = parse_macro_input!(item as syn::ItemImpl);
+
+    let self_ty = &impl_block.self_ty;
+
+    let mut wrappers = Vec::new();
+
+    for item in &mut impl_block.items {
+        let ImplItem::Fn(method) = item else {
+            panic!("Only methods are supported in #[native_methods] impl blocks");
+        };
+
+        let method_name = &method.sig.ident;
+
+        // Validate: no visibility modifier (the generated wrapper is always pub)
+        if !matches!(method.vis, Visibility::Inherited) {
+            panic!(
+                "Method `{method_name}` should not have a visibility modifier \
+                 (the generated wrapper is always pub)"
+            );
+        }
+
+        // Validate: no generic parameters
+        if !method.sig.generics.params.is_empty() {
+            panic!("Method `{method_name}` must not have generic parameters");
+        }
+
+        // Validate: must take `self` by value
+        match method.sig.inputs.first() {
+            Some(FnArg::Receiver(receiver)) if receiver.reference.is_none() => {}
+            _ => panic!("Method `{method_name}` must take `self` by value as the first parameter"),
+        }
+
+        // Validate: second parameter must be `activation` or `_activation`
+        match method.sig.inputs.iter().nth(1) {
+            Some(FnArg::Typed(pat_type)) if matches!(&*pat_type.pat, Pat::Ident(id) if id.ident == "activation" || id.ident == "_activation") =>
+                {}
+            _ => panic!(
+                "Method `{method_name}` must have `activation: &mut Activation<'_, 'gc>` \
+                 as the second parameter"
+            ),
+        }
+
+        // Collect parameters: skip `self` and `activation`, extract the rest as args
+        let mut arg_extractions = Vec::new();
+        let mut call_args = Vec::new();
+        let mut arg_index = 0usize;
+
+        for param in &method.sig.inputs {
+            match param {
+                FnArg::Receiver(_) => {}
+                FnArg::Typed(pat_type) => {
+                    let Pat::Ident(pat_ident) = &*pat_type.pat else {
+                        panic!("Unsupported parameter pattern in native method");
+                    };
+
+                    let name = &pat_ident.ident;
+                    if name == "activation" || name == "_activation" {
+                        continue;
+                    }
+
+                    // Look for #[name = "..."] attribute
+                    let error_name = pat_type
+                        .attrs
+                        .iter()
+                        .find_map(|attr| {
+                            if let Meta::NameValue(nv) = &attr.meta
+                                && nv.path.is_ident("name")
+                                && let syn::Expr::Lit(syn::ExprLit {
+                                    lit: syn::Lit::Str(s),
+                                    ..
+                                }) = &nv.value
+                            {
+                                return Some(s.value());
+                            }
+                            None
+                        })
+                        .unwrap_or_else(|| name.to_string());
+
+                    let ty = &pat_type.ty;
+                    let i = arg_index;
+                    arg_index += 1;
+
+                    let arg_var = format_ident!("__arg_{}", name);
+
+                    arg_extractions.push(quote! {
+                        let #arg_var = <#ty as crate::avm2::parameters::NativeArg<'gc>>::from_native_arg(
+                            activation,
+                            args[#i],
+                            #error_name,
+                        )?;
+                    });
+
+                    call_args.push(arg_var);
+                }
+            }
+        }
+
+        // Strip #[name = "..."] attributes from method parameters for the emitted impl block
+        for param in &mut method.sig.inputs {
+            if let FnArg::Typed(pat_type) = param {
+                pat_type.attrs.retain(
+                    |attr| !matches!(&attr.meta, Meta::NameValue(nv) if nv.path.is_ident("name")),
+                );
+            }
+        }
+
+        let wrapper = quote! {
+            pub fn #method_name<'gc>(
+                activation: &mut crate::avm2::Activation<'_, 'gc>,
+                __native_this: crate::avm2::Value<'gc>,
+                args: &[crate::avm2::Value<'gc>],
+            ) -> Result<crate::avm2::Value<'gc>, crate::avm2::Error<'gc>> {
+                let __native_this = <#self_ty as crate::avm2::parameters::NativeArg<'gc>>::from_native_arg(
+                    activation,
+                    __native_this,
+                    "this",
+                )?;
+                #(#arg_extractions)*
+                crate::avm2::parameters::NativeReturn::into_return_value(
+                    __native_this.#method_name(activation, #(#call_args),*),
+                    activation,
+                )
+            }
+        };
+
+        wrappers.push(wrapper);
+    }
+
+    quote!(#impl_block #(#wrappers)*).into()
+}
+
 fn atom_internal(
     item: TokenStream,
     transform: impl FnOnce(TokenStream2) -> TokenStream2,

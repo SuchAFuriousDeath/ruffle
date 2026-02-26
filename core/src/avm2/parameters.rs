@@ -1,9 +1,10 @@
-use crate::avm2::error::make_error_2007;
+use crate::avm2::error::{make_error_2007, make_error_2008};
 use crate::avm2::object::{FunctionObject, Object};
 use crate::avm2::{Activation, Error, Value};
 use crate::string::AvmString;
 
 use ruffle_macros::istr;
+use ruffle_wstr::FromWStr;
 
 /// Extensions over parameters that are passed into AS-defined, Rust-implemented methods.
 ///
@@ -154,5 +155,286 @@ impl<'gc> ParametersExt<'gc> for &[Value<'gc>] {
     #[inline]
     fn get_optional(&self, index: usize) -> Option<Value<'gc>> {
         self.get(index).copied()
+    }
+}
+
+/// Extract a typed Rust value from an AVM2 `Value`, performing AS3 coercion.
+pub trait NativeArg<'gc>: Sized {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        name: &'static str,
+    ) -> Result<Self, Error<'gc>>;
+}
+
+impl<'gc> NativeArg<'gc> for Value<'gc> {
+    fn from_native_arg(
+        _activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        _name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        Ok(value)
+    }
+}
+
+/// Convert a Rust return value back into an AVM2 `Value`.
+pub trait NativeReturn<'gc> {
+    fn into_return_value(
+        self,
+        activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>>;
+}
+
+impl<'gc> NativeArg<'gc> for f64 {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        _name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        value.coerce_to_number(activation)
+    }
+}
+
+impl<'gc> NativeArg<'gc> for i32 {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        _name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        value.coerce_to_i32(activation)
+    }
+}
+
+impl<'gc> NativeArg<'gc> for u32 {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        _name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        value.coerce_to_u32(activation)
+    }
+}
+
+impl<'gc> NativeArg<'gc> for bool {
+    fn from_native_arg(
+        _activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        _name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        Ok(value.coerce_to_boolean())
+    }
+}
+
+impl<'gc> NativeArg<'gc> for AvmString<'gc> {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        match value {
+            Value::Null => Err(make_error_2007(activation, name)),
+            Value::String(s) => Ok(s),
+            other => other.coerce_to_string(activation),
+        }
+    }
+}
+
+impl<'gc> NativeArg<'gc> for Object<'gc> {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        match value {
+            Value::Object(o) => Ok(o),
+            _ => Err(make_error_2007(activation, name)),
+        }
+    }
+}
+
+macro_rules! impl_native_arg_for_object_downcast {
+    ($($obj_ty:ident :: $downcast:ident),* $(,)?) => {
+        $(
+            impl<'gc> NativeArg<'gc> for crate::avm2::object::$obj_ty<'gc> {
+                fn from_native_arg(
+                    _activation: &mut Activation<'_, 'gc>,
+                    value: Value<'gc>,
+                    _name: &'static str,
+                ) -> Result<Self, Error<'gc>> {
+                    Ok(value.as_object().unwrap().$downcast().unwrap())
+                }
+            }
+        )*
+    };
+}
+
+impl_native_arg_for_object_downcast! {
+    Context3DObject::as_context_3d,
+    Program3DObject::as_program_3d,
+    IndexBuffer3DObject::as_index_buffer,
+    VertexBuffer3DObject::as_vertex_buffer,
+    TextureObject::as_texture,
+}
+
+impl<'gc, T: NativeArg<'gc>> NativeArg<'gc> for Option<T> {
+    fn from_native_arg(
+        activation: &mut Activation<'_, 'gc>,
+        value: Value<'gc>,
+        name: &'static str,
+    ) -> Result<Self, Error<'gc>> {
+        match value {
+            Value::Null | Value::Undefined => Ok(None),
+            other => Ok(Some(T::from_native_arg(activation, other, name)?)),
+        }
+    }
+}
+
+fn parse_string_enum<'gc, T: FromWStr<Err = ()>>(
+    activation: &mut Activation<'_, 'gc>,
+    value: Value<'gc>,
+    name: &'static str,
+) -> Result<T, Error<'gc>> {
+    let s = AvmString::from_native_arg(activation, value, name)?;
+    s.parse().map_err(|_| make_error_2008(activation, name))
+}
+
+macro_rules! impl_native_arg_for_string_enum {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl<'gc> NativeArg<'gc> for $ty {
+                fn from_native_arg(
+                    activation: &mut Activation<'_, 'gc>,
+                    value: Value<'gc>,
+                    name: &'static str,
+                ) -> Result<Self, Error<'gc>> {
+                    parse_string_enum(activation, value, name)
+                }
+            }
+        )*
+    };
+}
+
+impl_native_arg_for_string_enum! {
+    ruffle_render::backend::Context3DBlendFactor,
+    ruffle_render::backend::Context3DCompareMode,
+    ruffle_render::backend::Context3DMipFilter,
+    ruffle_render::backend::Context3DStencilAction,
+    ruffle_render::backend::Context3DTextureFilter,
+    ruffle_render::backend::Context3DTextureFormat,
+    ruffle_render::backend::Context3DTriangleFace,
+    ruffle_render::backend::Context3DVertexBufferFormat,
+    ruffle_render::backend::Context3DWrapMode,
+    ruffle_render::backend::ProgramType,
+}
+
+impl<'gc> NativeReturn<'gc> for Value<'gc> {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(self)
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for () {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::Undefined)
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for f64 {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::Number(self))
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for i32 {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::Integer(self))
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for u32 {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::Integer(self as i32))
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for bool {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::Bool(self))
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for AvmString<'gc> {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::String(self))
+    }
+}
+
+impl<'gc> NativeReturn<'gc> for Object<'gc> {
+    fn into_return_value(
+        self,
+        _activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        Ok(Value::Object(self))
+    }
+}
+
+macro_rules! impl_native_return_for_object_downcast {
+    ($($obj_ty:ident),* $(,)?) => {
+        $(
+            impl<'gc> NativeReturn<'gc> for crate::avm2::object::$obj_ty<'gc> {
+                fn into_return_value(self, _activation: &mut Activation<'_, 'gc>) -> Result<Value<'gc>, Error<'gc>> {
+                    Ok(Value::Object(self.into()))
+                }
+            }
+        )*
+    };
+}
+
+impl_native_return_for_object_downcast! {
+    IndexBuffer3DObject,
+    Program3DObject,
+    TextureObject,
+    VertexBuffer3DObject,
+}
+
+impl<'gc, T: NativeReturn<'gc>> NativeReturn<'gc> for Option<T> {
+    fn into_return_value(
+        self,
+        activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        match self {
+            Some(v) => v.into_return_value(activation),
+            None => Ok(Value::Null),
+        }
+    }
+}
+
+impl<'gc, T: NativeReturn<'gc>> NativeReturn<'gc> for Result<T, Error<'gc>> {
+    fn into_return_value(
+        self,
+        activation: &mut Activation<'_, 'gc>,
+    ) -> Result<Value<'gc>, Error<'gc>> {
+        self?.into_return_value(activation)
     }
 }
