@@ -13,7 +13,7 @@ use crate::avm2::parameters::ParametersExt;
 use crate::avm2_stub_method;
 use ruffle_macros::istr;
 use ruffle_render::backend::BufferUsage;
-use ruffle_render::backend::{Context3DProfile, Context3DTextureFilter};
+use ruffle_render::backend::{Context3DMipFilter, Context3DProfile, Context3DTextureFilter};
 use swf::{Rectangle, Twips};
 
 pub fn create_index_buffer<'gc>(
@@ -772,7 +772,10 @@ pub fn set_sampler_state_at<'gc>(
             .parse()
             .map_err(|_| make_error_2008(activation, "filter"))?;
 
-        let mip_filter = args.get_string_non_null(activation, 3, "mipfilter")?;
+        let mip_filter = args
+            .get_string_non_null(activation, 3, "mipfilter")?
+            .parse()
+            .map_err(|_| make_error_2008(activation, "mipfilter"))?;
 
         if matches!(
             filter,
@@ -789,7 +792,7 @@ pub fn set_sampler_state_at<'gc>(
             );
         }
 
-        if &*mip_filter != b"mipnone" {
+        if !matches!(mip_filter, Context3DMipFilter::MipNone) {
             avm2_stub_method!(
                 activation,
                 "flash.display3D.Context3D",

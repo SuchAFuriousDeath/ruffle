@@ -502,6 +502,30 @@ impl FromWStr for Context3DTextureFilter {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum Context3DMipFilter {
+    MipLinear,
+    MipNearest,
+    MipNone,
+}
+
+impl FromWStr for Context3DMipFilter {
+    type Err = ();
+
+    fn from_wstr(s: &WStr) -> Result<Self, Self::Err> {
+        if s == b"miplinear" {
+            Ok(Context3DMipFilter::MipLinear)
+        } else if s == b"mipnearest" {
+            Ok(Context3DMipFilter::MipNearest)
+        } else if s == b"mipnone" {
+            Ok(Context3DMipFilter::MipNone)
+        } else {
+            Err(())
+        }
+    }
+}
+
 pub enum Context3DCommand<'a> {
     Clear {
         red: f64,
