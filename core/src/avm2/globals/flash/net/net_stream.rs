@@ -4,6 +4,34 @@ use crate::avm2::{Activation, Error, Value};
 
 pub use crate::avm2::object::netstream_allocator as net_stream_allocator;
 
+pub fn append_bytes<'gc>(
+    activation: &mut Activation<'_, 'gc>,
+    this: Value<'gc>,
+    args: &[Value<'gc>],
+) -> Result<Value<'gc>, Error<'gc>> {
+    let this = this.as_object().unwrap();
+
+    if let Some(ns) = this.as_netstream() {
+        let bytes = args.get_object(activation, 0, "bytes")?;
+        let bytearray = bytes
+            .as_bytearray()
+            .expect("appendBytes argument is a ByteArray");
+
+        // `appendBytes` reads from the current position to the end of the
+        // ByteArray, but does not advance the position.
+        let position = bytearray.position();
+        let available = bytearray.bytes_available();
+
+        let data = bytearray
+            .read_at(available, position)
+            .map_err(|e| e.to_avm(activation))?;
+
+        ns.append_bytes(activation.context, data);
+    }
+
+    Ok(Value::Undefined)
+}
+
 pub fn get_bytes_loaded<'gc>(
     _activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,

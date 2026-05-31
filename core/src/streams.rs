@@ -404,6 +404,17 @@ impl<'gc> NetStream<'gc> {
         );
     }
 
+    /// Append data to the `NetStream`'s current internal buffer without firing
+    /// the `NetStream.Buffer.Full` status event.
+    ///
+    /// Used by AVM2 `NetStream.appendBytes`, where Flash does not fire the
+    /// progressive-download status events that `load_buffer` emits.
+    pub fn append_bytes(self, context: &mut UpdateContext<'gc>, data: &[u8]) {
+        self.source().buffer.borrow_mut().extend_from_slice(data);
+
+        StreamManager::activate(context, self);
+    }
+
     /// Indicate that the buffer has finished loading and that no further data
     /// is expected to be downloaded to it.
     pub fn finish_buffer(self) {
