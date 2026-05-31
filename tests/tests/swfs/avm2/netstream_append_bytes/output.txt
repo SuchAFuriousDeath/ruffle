@@ -1,0 +1,9 @@
+before length:         8
+before position:       2
+before bytesAvailable: 6
+after length:          8
+after position:        2
+after bytesAvailable:  6
+second position:       0
+empty position:        8
+test over
