@@ -18,6 +18,7 @@ use gc_arena::barrier::{Write, unlock};
 use gc_arena::lock::Lock;
 use gc_arena::{Collect, Gc, Mutation};
 use ruffle_macros::{enum_trait_object, istr};
+use ruffle_render::matrix3d::Matrix3D;
 use ruffle_render::perspective_projection::PerspectiveProjection;
 use ruffle_render::pixel_bender::PixelBenderShaderHandle;
 use ruffle_render::transform::{Transform, TransformStack};
@@ -254,6 +255,42 @@ pub enum RenderMask<'gc> {
     Alpha(DisplayObject<'gc>),
 }
 
+/// The transform matrix carried by a `DisplayObject`.
+///
+/// AS3 spec: an object is in either 2D or 3D mode at any time. `Transform.matrix`
+/// returns `null` in 3D mode; `Transform.matrix3D` returns `null` in 2D mode.
+/// Encoding this as an enum makes the impossible-states unrepresentable.
+#[derive(Copy, Clone, Debug, Collect)]
+#[collect(require_static)]
+pub enum DisplayMatrix {
+    Matrix2D(Matrix),
+    Matrix3D(Matrix3D),
+}
+
+impl Default for DisplayMatrix {
+    fn default() -> Self {
+        Self::Matrix2D(Matrix::IDENTITY)
+    }
+}
+
+impl DisplayMatrix {
+    /// Project to a 2D matrix. Lossy when in 3D mode (drops Z/rotation X/Y/etc.).
+    pub fn to_matrix_2d(self) -> Matrix {
+        match self {
+            Self::Matrix2D(m) => m,
+            Self::Matrix3D(m) => m.to_matrix(),
+        }
+    }
+
+    /// Lift to a 4x4 matrix. Lossless: 2D affine fills the relevant cells.
+    pub fn to_matrix_3d(self) -> Matrix3D {
+        match self {
+            Self::Matrix2D(m) => Matrix3D::from_matrix(m),
+            Self::Matrix3D(m) => m,
+        }
+    }
+}
+
 #[derive(Clone, Collect)]
 #[collect(no_drop)]
 // Ensure this always has the same alignment as its subclasses (needed for `Gc` casts).
@@ -269,7 +306,7 @@ pub struct DisplayObjectBase<'gc> {
 
     // The transform of this display object.
     // (Split into several fields for easier access)
-    matrix: Cell<Matrix>,
+    display_matrix: Cell<DisplayMatrix>,
     color_transform: Cell<ColorTransform>,
     perspective_projection: Cell<Option<PerspectiveProjection>>,
 
@@ -345,7 +382,7 @@ impl Default for DisplayObjectBase<'_> {
             ratio: Default::default(),
             name: Lock::new(None),
             clip_depth: Default::default(),
-            matrix: Default::default(),
+            display_matrix: Default::default(),
             color_transform: Default::default(),
             perspective_projection: Default::default(),
             rotation: Cell::new(Degrees::from_radians(0.0)),
@@ -402,7 +439,9 @@ impl<'gc> DisplayObjectBase<'gc> {
     fn transform(&self, apply_matrix: bool) -> Transform {
         Transform {
             matrix: if apply_matrix {
-                self.matrix.get()
+                // Render pipeline is still 2D-only; lossy project Matrix3D → Matrix2D.
+                // TODO: pass through Matrix3D when the render path supports it.
+                self.display_matrix.get().to_matrix_2d()
             } else {
                 Matrix::IDENTITY
             },
@@ -412,12 +451,47 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     pub fn matrix(&self) -> Matrix {
-        self.matrix.get()
+        self.display_matrix.get().to_matrix_2d()
     }
 
     pub fn set_matrix(&self, matrix: Matrix) {
-        self.matrix.set(matrix);
+        self.display_matrix.set(DisplayMatrix::Matrix2D(matrix));
         self.set_scale_rotation_cached(false);
+    }
+
+    pub fn display_matrix(&self) -> DisplayMatrix {
+        self.display_matrix.get()
+    }
+
+    pub fn set_display_matrix(&self, dm: DisplayMatrix) {
+        self.display_matrix.set(dm);
+        self.set_scale_rotation_cached(false);
+    }
+
+    /// Mutate the 2D affine portion of the transform in place, preserving the
+    /// current 2D-vs-3D mode. When in 3D mode the new affine is written back
+    /// into the Matrix3D cells that store the 2D part.
+    fn mutate_matrix_2d(&self, f: impl FnOnce(&mut Matrix)) {
+        self.display_matrix.update(|matrix| match matrix {
+            DisplayMatrix::Matrix2D(mut m) => {
+                f(&mut m);
+
+                DisplayMatrix::Matrix2D(m)
+            }
+            DisplayMatrix::Matrix3D(mut m3d) => {
+                let mut m = m3d.to_matrix();
+                f(&mut m);
+
+                m3d.raw_data[0] = m.a as f64;
+                m3d.raw_data[1] = m.b as f64;
+                m3d.raw_data[4] = m.c as f64;
+                m3d.raw_data[5] = m.d as f64;
+                m3d.raw_data[12] = m.tx.to_pixels();
+                m3d.raw_data[13] = m.ty.to_pixels();
+
+                DisplayMatrix::Matrix3D(m3d)
+            }
+        });
     }
 
     pub fn color_transform(&self) -> ColorTransform {
@@ -441,27 +515,23 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn x(&self) -> Twips {
-        self.matrix.get().tx
+        self.matrix().tx
     }
 
     fn set_x(&self, x: Twips) -> bool {
-        let mut matrix = self.matrix.get();
-        let changed = matrix.tx != x;
-        matrix.tx = x;
-        self.matrix.set(matrix);
+        let changed = self.matrix().tx != x;
+        self.mutate_matrix_2d(|m| m.tx = x);
         self.set_transformed_by_script(true);
         changed
     }
 
     fn y(&self) -> Twips {
-        self.matrix.get().ty
+        self.matrix().ty
     }
 
     fn set_y(&self, y: Twips) -> bool {
-        let mut matrix = self.matrix.get();
-        let changed = matrix.ty != y;
-        matrix.ty = y;
-        self.matrix.set(matrix);
+        let changed = self.matrix().ty != y;
+        self.mutate_matrix_2d(|m| m.ty = y);
         self.set_transformed_by_script(true);
         changed
     }
@@ -471,7 +541,7 @@ impl<'gc> DisplayObjectBase<'gc> {
     /// `_rotation` is accessed.
     fn cache_scale_rotation(&self) {
         if !self.scale_rotation_cached() {
-            let Matrix { a, b, c, d, .. } = self.matrix.get();
+            let Matrix { a, b, c, d, .. } = self.matrix();
             let a = f64::from(a);
             let b = f64::from(b);
             let c = f64::from(c);
@@ -533,12 +603,13 @@ impl<'gc> DisplayObjectBase<'gc> {
         let sin_y = f64::sin(degrees.into_radians() + skew);
         let scale_x = self.scale_x.get().unit();
         let scale_y = self.scale_y.get().unit();
-        let mut matrix = self.matrix.get();
-        matrix.a = (scale_x * cos_x) as f32;
-        matrix.b = (scale_x * sin_x) as f32;
-        matrix.c = (scale_y * -sin_y) as f32;
-        matrix.d = (scale_y * cos_y) as f32;
-        self.matrix.set(matrix);
+
+        self.mutate_matrix_2d(|m| {
+            m.a = (scale_x * cos_x) as f32;
+            m.b = (scale_x * sin_x) as f32;
+            m.c = (scale_y * -sin_y) as f32;
+            m.d = (scale_y * cos_y) as f32;
+        });
 
         changed
     }
@@ -570,10 +641,11 @@ impl<'gc> DisplayObjectBase<'gc> {
 
         let cos = f64::cos(rot);
         let sin = f64::sin(rot);
-        let mut matrix = self.matrix.get();
-        matrix.a = (cos * value.unit()) as f32;
-        matrix.b = (sin * value.unit()) as f32;
-        self.matrix.set(matrix);
+
+        self.mutate_matrix_2d(|m| {
+            m.a = (cos * value.unit()) as f32;
+            m.b = (sin * value.unit()) as f32;
+        });
 
         changed
     }
@@ -606,10 +678,11 @@ impl<'gc> DisplayObjectBase<'gc> {
         let skew = self.skew.get();
         let cos = f64::cos(rot + skew);
         let sin = f64::sin(rot + skew);
-        let mut matrix = self.matrix.get();
-        matrix.c = (-sin * value.unit()) as f32;
-        matrix.d = (cos * value.unit()) as f32;
-        self.matrix.set(matrix);
+
+        self.mutate_matrix_2d(|m| {
+            m.c = (-sin * value.unit()) as f32;
+            m.d = (cos * value.unit()) as f32;
+        });
 
         changed
     }
@@ -897,14 +970,6 @@ impl<'gc> DisplayObjectBase<'gc> {
 
     fn set_meta_data(this: &Write<Self>, value: Avm2Object<'gc>) {
         unlock!(this, Self, meta_data).set(Some(value));
-    }
-
-    pub fn has_matrix3d_stub(&self) -> bool {
-        self.contains_flag(DisplayObjectFlags::HAS_MATRIX3D_STUB)
-    }
-
-    pub fn set_has_matrix3d_stub(&self, value: bool) {
-        self.set_flag(DisplayObjectFlags::HAS_MATRIX3D_STUB, value)
     }
 }
 
@@ -2985,9 +3050,6 @@ bitflags! {
 
         /// If this AVM1 object is pending removal (will be removed on the next frame).
         const AVM1_PENDING_REMOVAL     = 1 << 13;
-
-        /// Whether this object has matrix3D (used for stubbing).
-        const HAS_MATRIX3D_STUB        = 1 << 14;
 
         /// Whether this object has been placed by an AVM1 method,
         /// i.e. attachMovie, createEmptyMovieClip, duplicateMovieClip.
