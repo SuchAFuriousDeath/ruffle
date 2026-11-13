@@ -3593,10 +3593,17 @@ impl EditTextRestrict {
 
     pub fn filter_allowed(&self, text: &WStr) -> WString {
         let mut filtered = WString::with_capacity(text.len(), text.is_wide());
+
         for c in text.chars() {
-            if let Some(c) = c.ok().and_then(|c| self.to_allowed(c)) {
-                filtered.push_char(c);
-            }
+            let Ok(c) = c else { continue };
+
+            let c = match c {
+                '\n' | '\r' => c,
+                _ if let Some(c) = self.to_allowed(c) => c,
+                _ => continue,
+            };
+
+            filtered.push_char(c);
         }
         filtered
     }
