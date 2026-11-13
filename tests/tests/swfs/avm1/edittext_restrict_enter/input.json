@@ -1,0 +1,7 @@
+[
+    { "type": "TextInput", "codepoint": "A" },
+    { "type": "TextControl", "code": "Enter" },
+    { "type": "TextInput", "codepoint": "B" },
+    { "type": "SetClipboardText", "text": "X\nY" },
+    { "type": "TextControl", "code": "Paste" }
+]

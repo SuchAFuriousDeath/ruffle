@@ -1,0 +1,4 @@
+changed: A
+changed: A\r
+changed: A\rB
+changed: A\rBX\nY
