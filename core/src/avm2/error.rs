@@ -230,7 +230,6 @@ pub enum XmlErrorCode {
     /// Error #1094: XML parser failure: Unterminated comment.
     UnterminatedComment = 1094,
     /// Error #1095: XML parser failure: Unterminated attribute value.
-    #[allow(unused)]
     UnterminatedAttribute = 1095,
     /// Error #1096: XML parser failure: Unterminated element.
     #[allow(unused)]

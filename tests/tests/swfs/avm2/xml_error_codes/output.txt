@@ -1,0 +1,17 @@
+whitespace before double quote: TypeError #1095
+whitespace before single quote: TypeError #1095
+unterminated value hits <: TypeError #1095
+unterminated value hits < after =: TypeError #1095
+< ends unterminated value before a later quote: TypeError #1095
+< ends unterminated single-quoted value before a later quote: TypeError #1095
+< in closed value: TypeError #1095
+< in closed single-quoted value: TypeError #1095
+quote not after =: TypeError #1090
+unquoted value: TypeError #1090
+unterminated tag: TypeError #1090
+<?xml without space: TypeError #1097
+<?xmlfoo: TypeError #1097
+<?xml with space: TypeError #1092
+<?XML uppercase: TypeError #1092
+<?xml with tab: TypeError #1097
+other PI: TypeError #1097

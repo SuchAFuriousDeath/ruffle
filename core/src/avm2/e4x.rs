@@ -906,15 +906,28 @@ impl<'gc> E4XNode<'gc> {
                     return Err(make_error_1088(activation));
                 }
                 Err(XmlError::Syntax(syntax_error)) => {
+                    let markup = &data_utf8.as_bytes()[parser.error_position() as usize..];
                     let code = match syntax_error {
-                        XmlSyntaxError::UnclosedPI => {
-                            XmlErrorCode::UnterminatedProcessingInstruction
+                        // avmplus only treats `<?xml ` (case-insensitive, with the space)
+                        // as an XML declaration, anything else is a processing instruction.
+                        XmlSyntaxError::UnclosedPI | XmlSyntaxError::UnclosedXmlDecl => {
+                            if markup
+                                .get(..6)
+                                .is_some_and(|m| m.eq_ignore_ascii_case(b"<?xml "))
+                            {
+                                XmlErrorCode::UnterminatedXmlDecl
+                            } else {
+                                XmlErrorCode::UnterminatedProcessingInstruction
+                            }
                         }
-                        XmlSyntaxError::UnclosedXmlDecl => XmlErrorCode::UnterminatedXmlDecl,
                         XmlSyntaxError::UnclosedComment => XmlErrorCode::UnterminatedComment,
                         XmlSyntaxError::UnclosedDoctype => XmlErrorCode::UnterminatedDoctype,
                         XmlSyntaxError::UnclosedCData => XmlErrorCode::UnterminatedCData,
-                        XmlSyntaxError::UnclosedTag => XmlErrorCode::ElementMalformed,
+                        XmlSyntaxError::UnclosedTag
+                        | XmlSyntaxError::UnclosedSingleQuotedAttributeValue
+                        | XmlSyntaxError::UnclosedDoubleQuotedAttributeValue => {
+                            unclosed_tag_error_code(markup)
+                        }
                         // TODO: handle other errors properly
                         _ => XmlErrorCode::ElementMalformed,
                     };
@@ -1064,6 +1077,14 @@ impl<'gc> E4XNode<'gc> {
             })?;
 
         for attribute in attributes {
+            // avmplus doesn't allow a `<` in an attribute value.
+            if attribute.value.contains(&b'<') {
+                return Err(make_xml_error(
+                    activation,
+                    XmlErrorCode::UnterminatedAttribute,
+                ));
+            }
+
             let value_str = avm2_unescape(&attribute.value)
                 .map_err(|_| make_xml_error(activation, XmlErrorCode::ElementMalformed))?;
             let value = AvmString::new_utf8(activation.gc(), value_str);
@@ -1834,4 +1855,31 @@ impl XmlSettings {
             pretty_indent: 2,
         }
     }
+}
+
+/// An attribute value that hits the end of input or a `<` before its closing
+/// quote is unterminated, anything else (including a quote that doesn't
+/// directly follow `=`) is a malformed element.
+fn unclosed_tag_error_code(markup: &[u8]) -> XmlErrorCode {
+    let mut bytes = markup.iter().copied().skip(1);
+
+    while let Some(byte) = bytes.next() {
+        if byte != b'=' {
+            continue;
+        }
+
+        let Some(delimiter @ (b'"' | b'\'')) = bytes.find(|b| !b.is_ascii_whitespace()) else {
+            return XmlErrorCode::ElementMalformed;
+        };
+
+        loop {
+            match bytes.next() {
+                None | Some(b'<') => return XmlErrorCode::UnterminatedAttribute,
+                Some(byte) if byte == delimiter => break,
+                Some(_) => {}
+            }
+        }
+    }
+
+    XmlErrorCode::ElementMalformed
 }
