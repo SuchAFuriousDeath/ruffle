@@ -802,8 +802,32 @@ impl<'gc> E4XNode<'gc> {
             }
         };
 
-        let data_utf8 = string.to_utf8_lossy();
-        let mut parser = NsReader::from_str(&data_utf8);
+        let mut data = string.to_utf8_lossy();
+
+        loop {
+            match Self::parse_str(
+                &data,
+                activation,
+                ignore_comments,
+                ignore_processing_instructions,
+                ignore_white,
+            )? {
+                ParseOutcome::Nodes(nodes) => return Ok(nodes),
+                ParseOutcome::UncasedCData(position) => {
+                    data.to_mut()[position + 3..position + 8].make_ascii_uppercase();
+                }
+            }
+        }
+    }
+
+    fn parse_str(
+        data_utf8: &str,
+        activation: &mut Activation<'_, 'gc>,
+        ignore_comments: bool,
+        ignore_processing_instructions: bool,
+        ignore_white: bool,
+    ) -> Result<ParseOutcome<'gc>, Error<'gc>> {
+        let mut parser = NsReader::from_str(data_utf8);
         // Flash has no limit on the number of namespace declarations per element.
         parser
             .resolver_mut()
@@ -905,6 +929,23 @@ impl<'gc> E4XNode<'gc> {
                 {
                     return Err(make_error_1088(activation));
                 }
+                Err(XmlError::Syntax(XmlSyntaxError::UnclosedCData)) => {
+                    let section = &data_utf8.as_bytes()
+                        [parser.error_position() as usize..parser.buffer_position() as usize];
+                        
+                    let Some(section) = section.strip_suffix(b"]]>") else {
+                        return Err(make_xml_error(activation, XmlErrorCode::UnterminatedCData));
+                    };
+
+                    if !section
+                        .get(..9)
+                        .is_some_and(|keyword| keyword.eq_ignore_ascii_case(b"<![CDATA["))
+                    {
+                        return Err(make_xml_error(activation, XmlErrorCode::ElementMalformed));
+                    }
+
+                    return Ok(ParseOutcome::UncasedCData(parser.error_position() as usize));
+                }
                 Err(XmlError::Syntax(syntax_error)) => {
                     let markup = &data_utf8.as_bytes()[parser.error_position() as usize..];
                     let code = match syntax_error {
@@ -922,7 +963,6 @@ impl<'gc> E4XNode<'gc> {
                         }
                         XmlSyntaxError::UnclosedComment => XmlErrorCode::UnterminatedComment,
                         XmlSyntaxError::UnclosedDoctype => XmlErrorCode::UnterminatedDoctype,
-                        XmlSyntaxError::UnclosedCData => XmlErrorCode::UnterminatedCData,
                         XmlSyntaxError::UnclosedTag
                         | XmlSyntaxError::UnclosedSingleQuotedAttributeValue
                         | XmlSyntaxError::UnclosedDoubleQuotedAttributeValue => {
@@ -1043,7 +1083,7 @@ impl<'gc> E4XNode<'gc> {
             ));
         }
 
-        Ok(top_level)
+        Ok(ParseOutcome::Nodes(top_level))
     }
 
     /// Construct an XML Element node from a `quick_xml` `BytesStart` event.
@@ -1855,6 +1895,13 @@ impl XmlSettings {
             pretty_indent: 2,
         }
     }
+}
+
+enum ParseOutcome<'gc> {
+    Nodes(Vec<E4XNode<'gc>>),
+    /// quick-xml rejected a CDATA section starting at this position only because
+    /// its keyword isn't uppercase, which avmplus doesn't care about.
+    UncasedCData(usize),
 }
 
 /// An attribute value that hits the end of input or a `<` before its closing

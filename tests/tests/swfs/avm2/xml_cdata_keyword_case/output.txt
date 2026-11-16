@@ -1,0 +1,11 @@
+<text><![CDATA[ a <> b ]]></text> => <text><![CDATA[ a <> b ]]></text> children=1
+<text><![cdata[ a <> b ]]></text> => <text><![CDATA[ a <> b ]]></text> children=1
+<text><![Cdata[ a <> b ]]></text> => <text><![CDATA[ a <> b ]]></text> children=1
+<text><![cDaTa[ a <> b ]]></text> => <text><![CDATA[ a <> b ]]></text> children=1
+<text>x<![cdata[y]]>z</text> => <text> | x | <![CDATA[y]]> | z | </text> children=3
+<text><![cdata[ unterminated </text> => TypeError #1091
+<text><![cdatax[ y ]]></text> => TypeError #1090
+<text><![cdat[ y ]]></text> => TypeError #1090
+<text><![ cdata[ y ]]></text> => TypeError #1090
+<![cdata[top]]> => kind=text <![CDATA[top]]>
+<![CDATA[top]]> => kind=text <![CDATA[top]]>
