@@ -1201,7 +1201,9 @@ pub async fn request_adapter_and_device(
             let names = get_backend_names(backend);
             if names.is_empty() {
                 "Ruffle requires hardware acceleration, but no compatible graphics device was found (no backend provided?)".to_string()
-            } else if cfg!(target_vendor = "apple") {
+            } else if cfg!(target_vendor = "apple")
+                && !wgpu::Instance::enabled_backend_features().contains(wgpu::Backends::GL)
+            {
                 "Ruffle does not support OpenGL on macOS/iOS.".to_string()
             } else {
                 format!("Ruffle requires hardware acceleration, but no compatible graphics device was found supporting {}", format_list(&names, "or"))

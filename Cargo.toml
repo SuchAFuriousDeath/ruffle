@@ -207,3 +207,17 @@ lto = "off"
 incremental = true
 # Right between the defaults of 16 and 256, for crate fragment caching.
 codegen-units = 64
+
+# Experimental: wgpu with a native macOS OpenGL (CGL) backend, for Macs without Metal.
+[patch.crates-io]
+naga = { path = "../wgpu/naga" }
+naga-types = { path = "../wgpu/naga-types" }
+wgpu = { path = "../wgpu/wgpu" }
+wgpu-core = { path = "../wgpu/wgpu-core" }
+wgpu-core-deps-apple = { path = "../wgpu/wgpu-core/platform-deps/apple" }
+wgpu-core-deps-emscripten = { path = "../wgpu/wgpu-core/platform-deps/emscripten" }
+wgpu-core-deps-wasm = { path = "../wgpu/wgpu-core/platform-deps/wasm" }
+wgpu-core-deps-windows-linux-android = { path = "../wgpu/wgpu-core/platform-deps/windows-linux-android" }
+wgpu-hal = { path = "../wgpu/wgpu-hal" }
+wgpu-naga-bridge = { path = "../wgpu/wgpu-naga-bridge" }
+wgpu-types = { path = "../wgpu/wgpu-types" }
