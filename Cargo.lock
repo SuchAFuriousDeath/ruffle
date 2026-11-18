@@ -3288,6 +3288,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 [[package]]
 name = "naga"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -3332,6 +3333,7 @@ dependencies = [
 [[package]]
 name = "naga-types"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "hashbrown 0.17.1",
  "indexmap",
@@ -7024,6 +7026,7 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 [[package]]
 name = "wgpu"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "arrayvec",
  "bitflags 2.13.2",
@@ -7052,6 +7055,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -7085,6 +7089,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-apple"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7092,6 +7097,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-emscripten"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7099,6 +7105,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-wasm"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7106,6 +7113,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-windows-linux-android"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7113,6 +7121,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -7167,6 +7176,7 @@ dependencies = [
 [[package]]
 name = "wgpu-naga-bridge"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "naga",
  "wgpu-types",
@@ -7187,6 +7197,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "30.0.2"
+source = "git+https://github.com/SuchAFuriousDeath/wgpu?branch=macos-cgl#2dd075e877e16ca049d5a45c1f1aaf9094e3d0ea"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
