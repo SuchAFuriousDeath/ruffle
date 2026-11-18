@@ -20,10 +20,12 @@ None of this has run on a Mac before, so problems are expected. Logs and screens
 In the `wgpu` folder:
 
 ```sh
-RUST_LOG=wgpu_hal=debug cargo run -p wgpu-info --features wgpu/cgl
+WGPU_BACKEND=gl RUST_LOG=wgpu_hal=debug cargo run -p wgpu-info --features wgpu/cgl
 ```
 
 The output should list an adapter with backend `Gl` and an OpenGL version of 4.1 or 3.3.
+
+`WGPU_BACKEND=gl` is needed on Macs that support Metal: OpenGL is only used by default when Metal finds no GPU. Without it, only the Metal adapter is listed. That's expected, and it's worth sending that output too.
 
 Then run a few examples through OpenGL:
 
