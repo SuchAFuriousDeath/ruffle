@@ -1,0 +1,19 @@
+Swf(
+    version: 15,
+    frame_rate: 24.0,
+    tags: [
+        FileAttributes(action_script_3: true),
+        DefineSprite(id: 1, tags: [ShowFrame, ShowFrame, ShowFrame, ShowFrame, ShowFrame, End]),
+        DefineSprite(id: 2, tags: [ShowFrame, ShowFrame, End]),
+        DefineSprite(id: 4, tags: [ShowFrame, ShowFrame, ShowFrame, ShowFrame, ShowFrame, End]),
+        // DefineButton2 6 (no menu flag, no actions), with sprite 4 in its up
+        // state (record 1) and in its over state (record 2) at depths 1 and 2.
+        Raw(code: 34, data: InlineBytes(["06 00", "00", "00 00", "01 04 00 01 00 00 00", "02 04 00 02 00 00 00", "00"])),
+        DefineSprite(id: 5, tags: [PlaceObject2(depth: 1, character: 6, name: "btn"), ShowFrame, End]),
+        DoAbc(Asc(file: "Test.as", scripts: ["Box.as", "Kid.as", "Holder.as"])),
+        SymbolClass([(character: 1, name: "Box"), (character: 4, name: "Kid"), (character: 5, name: "Holder"), (character: 0, name: "Test")]),
+        PlaceObject2(depth: 1, character: 2, name: "clip"),
+        ShowFrame, ShowFrame,
+        End,
+    ],
+)
