@@ -1,0 +1,111 @@
+name: CI build timings experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ci-*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FEATURES: lzma,jpegxr,imgtests
+  CARGO_INCREMENTAL: '1'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  RUSTUP_WINDOWS_PATH_ADD_BIN: '1'
+  XDG_RUNTIME_DIR: ''
+
+jobs:
+  timings:
+    name: Build timings / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt install -y $(cat .github/linux-dependencies.txt)
+
+      - name: Cache Cargo output
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "perf"
+          save-if: false
+
+      - name: Info
+        shell: bash
+        run: |
+          rustc -vV
+          cargo -V
+          echo "CPUs: $(nproc 2>/dev/null || echo "$NUMBER_OF_PROCESSORS")"
+          ls target/ci 2>/dev/null | head
+          du -sh target 2>/dev/null || true
+
+      - name: "1: Build like CI (incremental)"
+        shell: bash
+        run: |
+          start=$(date +%s)
+          cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
+          echo "BUILD_INCREMENTAL_SECONDS=$(( $(date +%s) - start ))"
+          mkdir -p timings && cp target/cargo-timings/cargo-timing.html timings/1-incremental.html
+
+      - name: "2: Rebuild only the tests binary (link time)"
+        shell: bash
+        run: |
+          touch tests/tests/regression_tests.rs
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            link_args="-Clink-arg=/TIME"
+          else
+            link_args="-Clink-arg=-Wl,--time-trace,--time-trace-file=$PWD/timings/lld-time-trace.json"
+          fi
+          start=$(date +%s)
+          cargo rustc --profile ci -p tests --test tests --locked --features ${FEATURES} --timings -- $link_args -Wlinker-messages
+          echo "TESTS_BINARY_SECONDS=$(( $(date +%s) - start ))"
+          cp target/cargo-timings/cargo-timing.html timings/2-tests-binary.html
+          ls -la target/ci/deps/tests-* 2>/dev/null | head || true
+          if [ -f timings/lld-time-trace.json ]; then
+            python3 -c "
+          import json; d=json.load(open('timings/lld-time-trace.json'))
+          ev=[e for e in d['traceEvents'] if e.get('ph')=='X']
+          tot=[e for e in ev if e['name'].startswith('Total')]
+          for e in sorted(tot, key=lambda e: -e['dur'])[:12]: print('%8.1f ms  %s' % (e['dur']/1000, e['name']))
+          "
+          fi
+
+      - name: "3: Build the workspace again without incremental"
+        shell: bash
+        run: |
+          members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
+          cargo clean --profile ci $members
+          start=$(date +%s)
+          CARGO_INCREMENTAL=0 cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
+          echo "BUILD_NON_INCREMENTAL_SECONDS=$(( $(date +%s) - start ))"
+          cp target/cargo-timings/cargo-timing.html timings/3-non-incremental.html
+
+      - name: "4: Build the workspace again with incremental (repeat of 1)"
+        shell: bash
+        run: |
+          members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
+          cargo clean --profile ci $members
+          start=$(date +%s)
+          cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
+          echo "BUILD_INCREMENTAL_AGAIN_SECONDS=$(( $(date +%s) - start ))"
+          cp target/cargo-timings/cargo-timing.html timings/4-incremental-again.html
+
+      - name: Upload timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timings-${{ matrix.os }}
+          path: timings/

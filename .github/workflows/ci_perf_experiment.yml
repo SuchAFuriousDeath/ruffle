@@ -2,8 +2,6 @@ name: CI perf experiment
 
 on:
   workflow_dispatch:
-  push:
-    branches: ['ci-*']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
