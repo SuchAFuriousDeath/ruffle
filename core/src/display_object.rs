@@ -322,12 +322,24 @@ pub struct Transform3D {
     pub rotation: EnumMap<Axis, f64>,
 
     pub scale: EnumMap<Axis, f64>,
+
+    /// Whether a rotation or scale was set since the transform was made from a
+    /// matrix. Until then, Flash Player rounds a scale that's set to f32
+    /// precision, like the scales decomposed from the matrix.
+    components_set: bool,
+
+    /// The translation along each axis, in twips.
+    ///
+    /// Flash Player keeps it apart from the matrix, whose translation cells
+    /// are calculated from it at f32 precision.
+    pub translation: EnumMap<Axis, f32>,
 }
 
 impl Transform3D {
     pub fn from_matrix(matrix: Matrix3D) -> Self {
         // Flash Player stores the decomposed values at f32 precision.
         let decomposed = matrix.decompose();
+        let translation = [12, 13, 14].map(|i| matrix.raw_data[i] * 20.0);
 
         Self {
             matrix,
@@ -337,7 +349,24 @@ impl Transform3D {
                     .map(|radians| f64::from(radians as f32).to_degrees()),
             ),
             scale: EnumMap::from_array(decomposed.scale.map(|scale| f64::from(scale as f32))),
+            components_set: false,
+            translation: EnumMap::from_array(translation),
         }
+    }
+
+    /// The 3D transform a 2D matrix turns into.
+    fn from_matrix_2d(matrix: Matrix) -> Self {
+        let mut transform = Self::from_matrix(Matrix3D::from_matrix(matrix));
+        transform.set_translation(Axis::X, matrix.tx.get() as f32);
+        transform.set_translation(Axis::Y, matrix.ty.get() as f32);
+
+        transform
+    }
+
+    /// Sets the translation along an axis, in twips.
+    fn set_translation(&mut self, axis: Axis, twips: f32) {
+        self.translation[axis] = twips;
+        self.matrix.raw_data[12 + axis.into_usize()] = twips * 0.05;
     }
 
     /// Rebuilds the matrix from the rotation and scale, keeping the
@@ -600,7 +629,7 @@ impl<'gc> DisplayObjectBase<'gc> {
     fn mutate_transform_3d<T>(&self, mutate: impl FnOnce(&mut Transform3D) -> T) -> T {
         let mut transform = self
             .transform_3d()
-            .unwrap_or_else(|| Transform3D::from_matrix(Matrix3D::from_matrix(self.matrix())));
+            .unwrap_or_else(|| Transform3D::from_matrix_2d(self.matrix()));
         let result = mutate(&mut transform);
 
         self.matrix.set(DisplayMatrix::Matrix3D(transform));
@@ -636,7 +665,19 @@ impl<'gc> DisplayObjectBase<'gc> {
             degrees = 0.0;
         }
 
-        self.update_transform_3d(|transform| transform.rotation[axis] = degrees)
+        self.update_transform_3d(|transform| {
+            transform.rotation[axis] = degrees;
+            transform.components_set = true;
+        })
+    }
+
+    fn scale_3d(&self, axis: Axis) -> f64 {
+        match (self.transform_3d(), axis) {
+            (Some(transform), _) => transform.scale[axis],
+            (None, Axis::X) => self.scale_x().unit(),
+            (None, Axis::Y) => self.scale_y().unit(),
+            (None, Axis::Z) => 1.0,
+        }
     }
 
     /// Sets a scale of the 3D transform, switching to a 3D transform if this
@@ -644,7 +685,14 @@ impl<'gc> DisplayObjectBase<'gc> {
     fn set_scale_3d(&self, axis: Axis, value: f64) -> bool {
         let value = clamp_scale_3d(value);
 
-        self.update_transform_3d(|transform| transform.scale[axis] = value)
+        self.update_transform_3d(|transform| {
+            transform.scale[axis] = if transform.components_set {
+                value
+            } else {
+                f64::from(value as f32)
+            };
+            transform.components_set = true;
+        })
     }
 
     pub fn color_transform(&self) -> ColorTransform {
@@ -700,7 +748,7 @@ impl<'gc> DisplayObjectBase<'gc> {
     /// The translation along the given axis, in pixels.
     fn translation_3d(&self, axis: Axis) -> f64 {
         match (self.transform_3d(), axis) {
-            (Some(transform), _) => transform.matrix.raw_data[12 + axis.into_usize()].into(),
+            (Some(transform), _) => (transform.translation[axis] / 20.0).into(),
             (None, Axis::X) => self.x().to_pixels(),
             (None, Axis::Y) => self.y().to_pixels(),
             (None, Axis::Z) => 0.0,
@@ -720,16 +768,16 @@ impl<'gc> DisplayObjectBase<'gc> {
             _ => {}
         }
 
-        if axis == Axis::Z && value.is_nan() {
+        if value.is_nan() {
             value = 0.0;
         }
 
         let was_3d = self.is_3d();
-        let value = value as f32;
+        let twips = (value * 20.0) as f32;
 
         self.mutate_transform_3d(|transform| {
-            let changed = !was_3d || transform.matrix.raw_data[12 + axis.into_usize()] != value;
-            transform.matrix.raw_data[12 + axis.into_usize()] = value;
+            let changed = !was_3d || transform.translation[axis] != twips;
+            transform.set_translation(axis, twips);
 
             changed
         })
@@ -1575,6 +1623,19 @@ pub fn apply_standard_mask_and_scroll<'gc, F>(
     }
 }
 
+/// Matches on an axis of a display object, separating the X and Y axes of a
+/// 2D transform, which go through the 2D properties, from the axes stored in
+/// a 3D transform.
+macro_rules! match_axis {
+    ($this:expr, $axis:expr, x => $x:expr, y => $y:expr, _ => $other:expr $(,)?) => {
+        match $axis {
+            Axis::X if !$this.base().is_3d() => $x,
+            Axis::Y if !$this.base().is_3d() => $y,
+            _ => $other,
+        }
+    };
+}
+
 #[enum_trait_object(
     #[derive(Clone, Collect, Debug, Copy)]
     #[collect(no_drop)]
@@ -1914,23 +1975,69 @@ pub trait TDisplayObject<'gc>:
         }
     }
 
-    /// The `z` position in local space.
-    /// Returned by the `z` ActionScript properties.
-    fn z(self) -> f64 {
-        self.base().translation_3d(Axis::Z)
+    /// The position along the given axis in pixels, in local space. Unlike
+    /// [`Self::x`] and [`Self::y`], this returns the exact value stored in a
+    /// 3D transform. Returned by the `x`/`y`/`z` ActionScript properties.
+    fn translation_3d(self, axis: Axis) -> f64 {
+        match_axis!(self, axis,
+            x => self.x().to_pixels(),
+            y => self.y().to_pixels(),
+            _ => self.base().translation_3d(axis),
+        )
     }
 
-    /// Sets the `z` position of this display object in local space.
-    /// Set by the `z` ActionScript properties.
+    /// Sets the position along the given axis in pixels, in local space. The
+    /// Z position switches to a 3D transform, while the X and Y positions of
+    /// a 2D transform keep it 2D. Set by the `x`/`y`/`z` ActionScript
+    /// properties.
     /// This invalidates any ancestors cacheAsBitmap automatically.
-    fn set_z(self, z: f64) {
-        if self.base().set_translation_3d(Axis::Z, z)
-            && let Some(parent) = self.parent()
-        {
-            // Self-transform changes are automatically handled,
-            // we only want to inform ancestors to avoid unnecessary invalidations for tx/ty
-            parent.invalidate_cached_bitmap();
-        }
+    fn set_translation_3d(self, axis: Axis, value: f64) {
+        match_axis!(self, axis,
+            x => self.set_x(Twips::from_pixels(value)),
+            y => self.set_y(Twips::from_pixels(value)),
+            _ => {
+                if self.base().set_translation_3d(axis, value)
+                    && let Some(parent) = self.parent()
+                {
+                    // Self-transform changes are automatically handled,
+                    // we only want to inform ancestors to avoid unnecessary invalidations for tx/ty
+                    parent.invalidate_cached_bitmap();
+                }
+            }
+        )
+    }
+
+    /// The scale along the given axis, as a unit value. Unlike
+    /// [`Self::scale_x`] and [`Self::scale_y`], this returns the exact value
+    /// stored in a 3D transform. Returned by the `scaleX`/`scaleY`
+    /// ActionScript properties.
+    #[no_dynamic]
+    fn scale_3d(self, axis: Axis) -> f64 {
+        match_axis!(self, axis,
+            x => self.scale_x().unit(),
+            y => self.scale_y().unit(),
+            _ => self.base().scale_3d(axis),
+        )
+    }
+
+    /// Sets the scale along the given axis, as a unit value. The Z scale
+    /// switches to a 3D transform, while the X and Y scales of a 2D
+    /// transform keep it 2D. Set by the `scaleX`/`scaleY`
+    /// ActionScript properties.
+    /// This invalidates any ancestors cacheAsBitmap automatically.
+    #[no_dynamic]
+    fn set_scale_3d(self, axis: Axis, value: f64) {
+        match_axis!(self, axis,
+            x => self.set_scale_x(Percent::from_unit(value)),
+            y => self.set_scale_y(Percent::from_unit(value)),
+            _ => {
+                if self.base().set_scale_3d(axis, value)
+                    && let Some(parent) = self.parent()
+                {
+                    parent.invalidate_cached_bitmap();
+                }
+            }
+        )
     }
 
     /// The rotation in degrees this display object in local space.

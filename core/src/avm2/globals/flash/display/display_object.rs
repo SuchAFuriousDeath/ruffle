@@ -16,10 +16,10 @@ use crate::avm2::value::Value;
 use crate::avm2::{ArrayObject, ArrayStorage};
 use crate::avm2::{ClassObject, Error};
 use crate::context::UpdateContext;
-use crate::display_object::{BoundsMode, DisplayObject, HitTestOptions, TDisplayObject};
+use crate::display_object::{Axis, BoundsMode, DisplayObject, HitTestOptions, TDisplayObject};
 use crate::ecma_conversions::round_to_even;
 use crate::string::AvmString;
-use crate::types::{Degrees, Percent};
+use crate::types::Degrees;
 use crate::vminterface::Instantiator;
 use crate::{avm2_stub_getter, avm2_stub_setter};
 use ruffle_render::blend::ExtendedBlendMode;
@@ -168,7 +168,7 @@ pub fn get_scale_y<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        return Ok(dobj.scale_y().unit().into());
+        return Ok(dobj.scale_3d(Axis::Y).into());
     }
 
     Ok(Value::Undefined)
@@ -183,8 +183,7 @@ pub fn set_scale_y<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        let new_scale = args.get_f64(0);
-        dobj.set_scale_y(Percent::from_unit(new_scale));
+        dobj.set_scale_3d(Axis::Y, args.get_f64(0));
     }
 
     Ok(Value::Undefined)
@@ -232,7 +231,7 @@ pub fn get_scale_x<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        return Ok(dobj.scale_x().unit().into());
+        return Ok(dobj.scale_3d(Axis::X).into());
     }
 
     Ok(Value::Undefined)
@@ -247,8 +246,7 @@ pub fn set_scale_x<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        let new_scale = args.get_f64(0);
-        dobj.set_scale_x(Percent::from_unit(new_scale));
+        dobj.set_scale_3d(Axis::X, args.get_f64(0));
     }
 
     Ok(Value::Undefined)
@@ -318,7 +316,7 @@ pub fn get_x<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        return Ok(dobj.x().to_pixels().into());
+        return Ok(dobj.translation_3d(Axis::X).into());
     }
 
     Ok(Value::Undefined)
@@ -333,8 +331,7 @@ pub fn set_x<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        let x = args.get_f64(0);
-        dobj.set_x(Twips::from_pixels(x));
+        dobj.set_translation_3d(Axis::X, args.get_f64(0));
     }
 
     Ok(Value::Undefined)
@@ -349,7 +346,7 @@ pub fn get_y<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        return Ok(dobj.y().to_pixels().into());
+        return Ok(dobj.translation_3d(Axis::Y).into());
     }
 
     Ok(Value::Undefined)
@@ -364,8 +361,7 @@ pub fn set_y<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        let y = args.get_f64(0);
-        dobj.set_y(Twips::from_pixels(y));
+        dobj.set_translation_3d(Axis::Y, args.get_f64(0));
     }
 
     Ok(Value::Undefined)
@@ -379,7 +375,7 @@ pub fn get_z<'gc>(
     let this = this.as_object().unwrap();
 
     if let Some(dobj) = this.as_display_object() {
-        return Ok(dobj.z().into());
+        return Ok(dobj.translation_3d(Axis::Z).into());
     }
     Ok(Value::Undefined)
 }
@@ -394,7 +390,7 @@ pub fn set_z<'gc>(
 
     if let Some(dobj) = this.as_display_object() {
         let z = args.get_f64(0);
-        dobj.set_z(z);
+        dobj.set_translation_3d(Axis::Z, z);
     }
     Ok(Value::Undefined)
 }
@@ -512,12 +508,16 @@ pub fn set_rotation<'gc>(
     if let Some(dobj) = this.as_display_object() {
         let mut new_rotation = args.get_f64(0);
 
-        // Normalize into the range of [-180, 180].
-        new_rotation %= 360.0;
-        if new_rotation < -180.0 {
-            new_rotation += 360.0
-        } else if new_rotation > 180.0 {
-            new_rotation -= 360.0
+        // Normalize into the range of [-180, 180], unless the object has a 3D
+        // transform, which keeps the rotation as it is.
+        if !dobj.base().is_3d() {
+            new_rotation %= 360.0;
+
+            if new_rotation < -180.0 {
+                new_rotation += 360.0
+            } else if new_rotation > 180.0 {
+                new_rotation -= 360.0
+            }
         }
 
         dobj.set_rotation(Degrees::from(new_rotation));
