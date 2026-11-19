@@ -1,0 +1,93 @@
+name: CI supervisor experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ci-supervisor']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FEATURES: lzma,jpegxr,imgtests
+  CARGO_INCREMENTAL: '1'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  RUSTUP_WINDOWS_PATH_ADD_BIN: '1'
+  XDG_RUNTIME_DIR: ''
+  RUFFLE_TEST_OPTS: "--compile-mode=compile-and-verify"
+
+jobs:
+  perf:
+    name: Supervisor / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt install -y $(cat .github/linux-dependencies.txt)
+
+      - name: Enable freetype tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo FEATURES=${FEATURES},freetype | tee -a $GITHUB_ENV
+
+      - name: Cache Cargo output
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "supervisor"
+          save-if: true
+
+      - name: Install cargo nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Build tests
+        shell: bash
+        run: cargo nextest run --profile ci --cargo-profile ci -p tests --test tests --locked --features ${FEATURES} --no-run
+
+      - name: Prepare DXC
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          dll=$(ls "/c/Program Files (x86)/Windows Kits/10/bin/"10.*/x64/dxcompiler.dll | sort -V | tail -1)
+          dir=$(dirname "$dll")
+          echo "Using DXC from $dir"
+          mkdir -p /c/dxc
+          cp "$dir/dxcompiler.dll" "$dir/dxil.dll" /c/dxc/
+
+      - name: "Self test"
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh selftest
+
+      - name: "Variant: supervisor 4"
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh supervisor 4
+
+      - name: "Variant: supervisor 8"
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh supervisor 8
+
+      - name: "Variant: supervisor 4 + DXC"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh supervisor_dxc 4
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: supervisor_logs_${{ matrix.os }}
+          path: supervisor-logs/
