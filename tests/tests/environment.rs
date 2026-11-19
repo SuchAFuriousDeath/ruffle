@@ -166,12 +166,12 @@ mod renderer {
 
     fn create_wgpu_device() -> Option<(wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue)> {
         let instance = create_wgpu_instance(
-            wgpu::Backends::all(),
+            wgpu::Backends::from_env().unwrap_or(wgpu::Backends::all()),
             wgpu::BackendOptions::from_env_or_default(),
             None,
         );
         futures::executor::block_on(request_adapter_and_device(
-            wgpu::Backends::all(),
+            wgpu::Backends::from_env().unwrap_or(wgpu::Backends::all()),
             &instance,
             None,
             Default::default(),

@@ -9,6 +9,12 @@ case "$VARIANT" in
   *novalid*) export WGPU_VALIDATION=0 WGPU_DEBUG=0 ;;
 esac
 case "$VARIANT" in
+  *dx12only*) export WGPU_BACKEND=dx12 ;;
+esac
+case "$VARIANT" in
+  *skiprender*) export PERF_SKIP_TICK_RENDER=1 ;;
+esac
+case "$VARIANT" in
   *dxc*) export PATH="/c/dxc:$PATH" WGPU_DX12_COMPILER=dxc ;;
 esac
 

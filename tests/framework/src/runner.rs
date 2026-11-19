@@ -292,7 +292,9 @@ impl TestRunner {
             perform_automated_event(evt, &mut player);
         });
         // Rendering has side-effects (such as processing 'DisplayObject.scrollRect' updates)
-        self.player.lock().unwrap().render();
+        if std::env::var_os("PERF_SKIP_TICK_RENDER").is_none() {
+            self.player.lock().unwrap().render();
+        }
 
         let trigger = ImageTrigger::SpecificIteration(self.current_iteration);
         if let Some((name, comp)) = self.take_image_comparison_by_trigger(trigger) {

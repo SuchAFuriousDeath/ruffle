@@ -85,7 +85,7 @@ jobs:
         run: |
           set +e +o pipefail
           cd tests
-          exe=$(ls -t ../target/ci/deps/regression_tests-*$( [ "$RUNNER_OS" = Windows ] && echo .exe ) | head -1)
+          exe=$(cargo nextest list --cargo-profile ci -p tests --locked --features ${FEATURES} --list-type binaries-only --message-format json | jq -r '."rust-binaries"["tests::tests"]."binary-path"')
           echo "exe=$exe"
           for t in avm1/add visual/gradient_issue_9892; do
             for i in 1 2 3 4; do
@@ -113,6 +113,20 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: .github/scripts/perf_variant.sh dxc_novalid
+
+      - name: "Variant: dxc+novalid+dx12only"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: .github/scripts/perf_variant.sh dxc_novalid_dx12only
+
+      - name: "Variant: baseline+skiprender"
+        shell: bash
+        run: .github/scripts/perf_variant.sh baseline_skiprender 1 1
+
+      - name: "Variant: dxc+novalid -j 4"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: .github/scripts/perf_variant.sh dxc_novalid_j4 4 1
 
       - name: "Variant: baseline -j 4"
         shell: bash
