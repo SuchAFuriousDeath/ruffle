@@ -13,11 +13,13 @@ use crate::tag_utils::SwfMovie;
 use crate::types::{Degrees, Percent};
 use crate::vminterface::Instantiator;
 use bitflags::bitflags;
+use enum_map::{Enum, EnumMap};
 use gc_arena::barrier::{Write, unlock};
 use gc_arena::lock::Lock;
 use gc_arena::{Collect, Gc, Mutation};
 use ruffle_macros::{enum_trait_object, istr};
 use ruffle_render::matrix::Matrix;
+use ruffle_render::matrix3d::Matrix3D;
 use ruffle_render::perspective_projection::PerspectiveProjection;
 use ruffle_render::pixel_bender::PixelBenderShaderHandle;
 use ruffle_render::transform::{Transform, TransformStack};
@@ -253,6 +255,151 @@ pub enum RenderMask<'gc> {
     Alpha(DisplayObject<'gc>),
 }
 
+/// The transformation matrix of a display object.
+///
+/// A display object has a 2D matrix, until ActionScript gives it a 3D
+/// transform, e.g. by setting `z` or `rotationX`. Only then do
+/// `transform.matrix` and `transform.matrix3D` switch to returning `null` and a
+/// `Matrix3D` respectively.
+#[derive(Clone, Copy, Debug, Collect)]
+#[collect(require_static)]
+pub enum DisplayMatrix {
+    Matrix2D(Matrix),
+    Matrix3D(Transform3D),
+}
+
+impl Default for DisplayMatrix {
+    fn default() -> Self {
+        Self::Matrix2D(Matrix::IDENTITY)
+    }
+}
+
+impl DisplayMatrix {
+    pub fn is_3d(self) -> bool {
+        matches!(self, Self::Matrix3D(_))
+    }
+
+    /// The 2D matrix, which is the projection onto the XY plane of a 3D
+    /// transform.
+    pub fn to_matrix_2d(self) -> Matrix {
+        match self {
+            Self::Matrix2D(matrix) => matrix,
+            Self::Matrix3D(transform) => transform.matrix.to_matrix(),
+        }
+    }
+}
+
+/// Flash Player replaces 3D scales closer to 0 than this (and `NaN`) with it,
+/// keeping the matrix invertible.
+#[expect(dead_code)]
+const MIN_SCALE_3D: f64 = 1.175494351e-36;
+
+#[expect(dead_code)]
+fn clamp_scale_3d(value: f64) -> f64 {
+    if value.is_nan() || value.abs() < MIN_SCALE_3D {
+        MIN_SCALE_3D
+    } else {
+        value
+    }
+}
+
+/// An axis of a 3D transform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+/// The 3D transform of a display object.
+///
+/// Flash Player remembers the rotation and scale values set by ActionScript,
+/// rebuilding the matrix from them whenever one of them changes. They are
+/// only derived from the matrix when it's set directly.
+#[derive(Clone, Copy, Debug)]
+pub struct Transform3D {
+    pub matrix: Matrix3D,
+
+    /// The rotation around each axis, in degrees.
+    pub rotation: EnumMap<Axis, f64>,
+
+    pub scale: EnumMap<Axis, f64>,
+}
+
+impl Transform3D {
+    pub fn from_matrix(matrix: Matrix3D) -> Self {
+        // Flash Player stores the decomposed values at f32 precision.
+        let decomposed = matrix.decompose();
+
+        Self {
+            matrix,
+            rotation: EnumMap::from_array(
+                decomposed
+                    .euler_angles()
+                    .map(|radians| f64::from(radians as f32).to_degrees()),
+            ),
+            scale: EnumMap::from_array(decomposed.scale.map(|scale| f64::from(scale as f32))),
+        }
+    }
+
+    /// Rebuilds the matrix from the rotation and scale, keeping the
+    /// translation.
+    ///
+    /// Unlike `Matrix3D.recompose`, Flash Player rotates around one axis at a
+    /// time, scales the columns, and keeps the translation as it is. This is
+    /// observable when some of the values aren't finite, e.g. a `rotationX`
+    /// of `Infinity` only fills the Y and Z columns with `NaN`.
+    #[expect(dead_code)]
+    fn recompose(&mut self) {
+        let rotation = self
+            .rotation
+            .map(|_, degrees| (degrees.to_radians() as f32).sin_cos());
+        let (x, y, z) = (rotation[Axis::X], rotation[Axis::Y], rotation[Axis::Z]);
+
+        #[rustfmt::skip]
+        let rotation_x = Matrix3D { raw_data: [
+            1.0, 0.0, 0.0, 0.0,
+            0.0, x.1, x.0, 0.0,
+            0.0, -x.0, x.1, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ] };
+        #[rustfmt::skip]
+        let rotation_y = Matrix3D { raw_data: [
+            y.1, 0.0, -y.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            y.0, 0.0, y.1, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ] };
+        #[rustfmt::skip]
+        let rotation_z = Matrix3D { raw_data: [
+            z.1, z.0, 0.0, 0.0,
+            -z.0, z.1, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ] };
+
+        let mut raw_data = rotation_z
+            .multiply(&rotation_y)
+            .multiply(&rotation_x)
+            .raw_data;
+
+        for (column, scale) in raw_data
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(self.scale.into_values())
+        {
+            for cell in column {
+                *cell *= scale as f32;
+            }
+        }
+
+        raw_data[12..15].copy_from_slice(&self.matrix.raw_data[12..15]);
+
+        self.matrix = Matrix3D { raw_data };
+    }
+}
+
 #[derive(Clone, Collect)]
 #[collect(no_drop)]
 // Ensure this always has the same alignment as its subclasses (needed for `Gc` casts).
@@ -268,7 +415,7 @@ pub struct DisplayObjectBase<'gc> {
 
     // The transform of this display object.
     // (Split into several fields for easier access)
-    matrix: Cell<Matrix>,
+    matrix: Cell<DisplayMatrix>,
     color_transform: Cell<ColorTransform>,
     perspective_projection: Cell<Option<PerspectiveProjection>>,
     tz: Cell<f64>,
@@ -403,7 +550,7 @@ impl<'gc> DisplayObjectBase<'gc> {
     fn transform(&self, apply_matrix: bool) -> Transform {
         Transform {
             matrix: if apply_matrix {
-                self.matrix.get()
+                self.matrix()
             } else {
                 Matrix::IDENTITY
             },
@@ -413,13 +560,99 @@ impl<'gc> DisplayObjectBase<'gc> {
         }
     }
 
+    /// The 2D matrix of this object. For an object with a 3D transform, this
+    /// is its projection onto the XY plane.
     pub fn matrix(&self) -> Matrix {
+        self.matrix.get().to_matrix_2d()
+    }
+
+    /// Changes the 2D matrix of this object, which keeps it 2D.
+    fn mutate_matrix_as_2d(&self, mutate: impl FnOnce(&mut Matrix)) {
+        let mut matrix = self.matrix();
+        mutate(&mut matrix);
+        self.matrix.set(DisplayMatrix::Matrix2D(matrix));
+    }
+
+    pub fn is_3d(&self) -> bool {
+        self.matrix.get().is_3d()
+    }
+
+    /// Sets a 2D matrix, discarding any 3D transform.
+    pub fn set_matrix(&self, matrix: Matrix) {
+        self.matrix.set(DisplayMatrix::Matrix2D(matrix));
+
+        self.set_scale_rotation_cached(false);
+    }
+
+    pub fn display_matrix(&self) -> DisplayMatrix {
         self.matrix.get()
     }
 
-    pub fn set_matrix(&self, matrix: Matrix) {
+    pub fn set_display_matrix(&self, matrix: DisplayMatrix) {
         self.matrix.set(matrix);
         self.set_scale_rotation_cached(false);
+    }
+
+    pub fn transform_3d(&self) -> Option<Transform3D> {
+        match self.matrix.get() {
+            DisplayMatrix::Matrix2D(_) => None,
+            DisplayMatrix::Matrix3D(transform) => Some(transform),
+        }
+    }
+
+    /// Changes the 3D transform of this object, switching to one made from
+    /// the 2D matrix if this object doesn't have one yet.
+    fn mutate_transform_3d<T>(&self, mutate: impl FnOnce(&mut Transform3D) -> T) -> T {
+        let mut transform = self
+            .transform_3d()
+            .unwrap_or_else(|| Transform3D::from_matrix(Matrix3D::from_matrix(self.matrix())));
+        let result = mutate(&mut transform);
+
+        self.matrix.set(DisplayMatrix::Matrix3D(transform));
+        self.set_transformed_by_script(true);
+
+        result
+    }
+
+    /// Switches to a 3D transform made from the 2D matrix, if this object
+    /// doesn't have one yet.
+    pub fn ensure_transform_3d(&self) {
+        if !self.is_3d() {
+            self.mutate_transform_3d(|_| ());
+        }
+    }
+
+    /// Changes a rotation or scale of the 3D transform, switching to a 3D
+    /// transform if this object doesn't have one yet.
+    #[expect(dead_code)]
+    fn update_transform_3d(&self, update: impl FnOnce(&mut Transform3D)) -> bool {
+        let was_3d = self.is_3d();
+
+        self.mutate_transform_3d(|transform| {
+            let old = transform.matrix;
+            update(transform);
+            transform.recompose();
+
+            !was_3d || old != transform.matrix
+        })
+    }
+
+    #[expect(dead_code)]
+    fn set_rotation_3d(&self, axis: Axis, mut degrees: f64) -> bool {
+        if degrees.is_nan() {
+            degrees = 0.0;
+        }
+
+        self.update_transform_3d(|transform| transform.rotation[axis] = degrees)
+    }
+
+    /// Sets a scale of the 3D transform, switching to a 3D transform if this
+    /// object doesn't have one yet.
+    #[expect(dead_code)]
+    fn set_scale_3d(&self, axis: Axis, value: f64) -> bool {
+        let value = clamp_scale_3d(value);
+
+        self.update_transform_3d(|transform| transform.scale[axis] = value)
     }
 
     pub fn color_transform(&self) -> ColorTransform {
@@ -443,27 +676,23 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn x(&self) -> Twips {
-        self.matrix.get().tx
+        self.matrix().tx
     }
 
     fn set_x(&self, x: Twips) -> bool {
-        let mut matrix = self.matrix.get();
-        let changed = matrix.tx != x;
-        matrix.tx = x;
-        self.matrix.set(matrix);
+        let changed = self.x() != x;
+        self.mutate_matrix_as_2d(|matrix| matrix.tx = x);
         self.set_transformed_by_script(true);
         changed
     }
 
     fn y(&self) -> Twips {
-        self.matrix.get().ty
+        self.matrix().ty
     }
 
     fn set_y(&self, y: Twips) -> bool {
-        let mut matrix = self.matrix.get();
-        let changed = matrix.ty != y;
-        matrix.ty = y;
-        self.matrix.set(matrix);
+        let changed = self.y() != y;
+        self.mutate_matrix_as_2d(|matrix| matrix.ty = y);
         self.set_transformed_by_script(true);
         changed
     }
@@ -479,12 +708,52 @@ impl<'gc> DisplayObjectBase<'gc> {
         changed
     }
 
+    /// The translation along the given axis, in pixels.
+    #[expect(dead_code)]
+    fn translation_3d(&self, axis: Axis) -> f64 {
+        match (self.transform_3d(), axis) {
+            (Some(transform), _) => transform.matrix.raw_data[12 + axis.into_usize()].into(),
+            (None, Axis::X) => self.x().to_pixels(),
+            (None, Axis::Y) => self.y().to_pixels(),
+            (None, Axis::Z) => 0.0,
+        }
+    }
+
+    /// Sets the translation along the given axis, in pixels.
+    ///
+    /// The Z translation switches to a 3D transform, while the X and Y
+    /// translations of a 2D transform keep it 2D, rounded to twips. With a
+    /// 3D transform, this only changes the translation, keeping the rest of
+    /// the matrix as it is.
+    #[expect(dead_code)]
+    fn set_translation_3d(&self, axis: Axis, mut value: f64) -> bool {
+        match (self.transform_3d(), axis) {
+            (None, Axis::X) => return self.set_x(Twips::from_pixels(value)),
+            (None, Axis::Y) => return self.set_y(Twips::from_pixels(value)),
+            _ => {}
+        }
+
+        if axis == Axis::Z && value.is_nan() {
+            value = 0.0;
+        }
+
+        let was_3d = self.is_3d();
+        let value = value as f32;
+
+        self.mutate_transform_3d(|transform| {
+            let changed = !was_3d || transform.matrix.raw_data[12 + axis.into_usize()] != value;
+            transform.matrix.raw_data[12 + axis.into_usize()] = value;
+
+            changed
+        })
+    }
+
     /// Caches the scale and rotation factors for this display object, if necessary.
     /// Calculating these requires heavy trig ops, so we only do it when `_xscale`, `_yscale` or
     /// `_rotation` is accessed.
     fn cache_scale_rotation(&self) {
         if !self.scale_rotation_cached() {
-            let Matrix { a, b, c, d, .. } = self.matrix.get();
+            let Matrix { a, b, c, d, .. } = self.matrix();
             let a = f64::from(a);
             let b = f64::from(b);
             let c = f64::from(c);
@@ -546,12 +815,12 @@ impl<'gc> DisplayObjectBase<'gc> {
         let sin_y = f64::sin(degrees.into_radians() + skew);
         let scale_x = self.scale_x.get().unit();
         let scale_y = self.scale_y.get().unit();
-        let mut matrix = self.matrix.get();
-        matrix.a = (scale_x * cos_x) as f32;
-        matrix.b = (scale_x * sin_x) as f32;
-        matrix.c = (scale_y * -sin_y) as f32;
-        matrix.d = (scale_y * cos_y) as f32;
-        self.matrix.set(matrix);
+        self.mutate_matrix_as_2d(|matrix| {
+            matrix.a = (scale_x * cos_x) as f32;
+            matrix.b = (scale_x * sin_x) as f32;
+            matrix.c = (scale_y * -sin_y) as f32;
+            matrix.d = (scale_y * cos_y) as f32;
+        });
 
         changed
     }
@@ -583,10 +852,10 @@ impl<'gc> DisplayObjectBase<'gc> {
 
         let cos = f64::cos(rot);
         let sin = f64::sin(rot);
-        let mut matrix = self.matrix.get();
-        matrix.a = (cos * value.unit()) as f32;
-        matrix.b = (sin * value.unit()) as f32;
-        self.matrix.set(matrix);
+        self.mutate_matrix_as_2d(|matrix| {
+            matrix.a = (cos * value.unit()) as f32;
+            matrix.b = (sin * value.unit()) as f32;
+        });
 
         changed
     }
@@ -619,10 +888,10 @@ impl<'gc> DisplayObjectBase<'gc> {
         let skew = self.skew.get();
         let cos = f64::cos(rot + skew);
         let sin = f64::sin(rot + skew);
-        let mut matrix = self.matrix.get();
-        matrix.c = (-sin * value.unit()) as f32;
-        matrix.d = (cos * value.unit()) as f32;
-        self.matrix.set(matrix);
+        self.mutate_matrix_as_2d(|matrix| {
+            matrix.c = (-sin * value.unit()) as f32;
+            matrix.d = (cos * value.unit()) as f32;
+        });
 
         changed
     }
