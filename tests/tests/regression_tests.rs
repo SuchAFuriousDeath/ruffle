@@ -37,7 +37,26 @@ struct RuffleTestOpts {
     compile_mode: CompileMode,
 }
 
+fn timing_now_ms() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64() * 1000.0)
+        .unwrap_or_default()
+}
+
+fn timing_log(label: &str, start: std::time::Instant) {
+    eprintln!(
+        "[TIMING] t={:.3} pid={} {} {:.3}ms",
+        timing_now_ms(),
+        std::process::id(),
+        label,
+        start.elapsed().as_secs_f64() * 1000.0
+    );
+}
+
 fn main() {
+    let main_start = std::time::Instant::now();
+    timing_log("main.start", main_start);
     let default_log_filter = default_log_filter();
 
     let _ = env_logger::Builder::from_env(
@@ -68,6 +87,7 @@ fn main() {
             .chain(ruffle_test_opts.split(" ").filter(|s| !s.is_empty())),
     );
 
+    timing_log("main.logging_init", main_start);
     let env = Arc::new(NativeEnvironment::new(ruffle_test_opts.compile_mode));
 
     let mut runner = FsTestsRunner::new();
@@ -112,11 +132,17 @@ fn main() {
         external_interface_avm2(&*env_clone)
     }));
 
+    timing_log("main.setup_done", main_start);
+    let t = std::time::Instant::now();
     let conclusion = runner.run();
+    timing_log("main.runner_run", t);
 
     // Workaround for shutdown races on slow / software GPU drivers; see
     // `NativeEnvironment::flush_gpu_with_timeout`.
+    let t = std::time::Instant::now();
     env.flush_gpu_with_timeout(std::time::Duration::from_secs(15));
+    timing_log("main.flush_gpu", t);
+    timing_log("main.end", main_start);
 
     conclusion.exit()
 }
@@ -164,15 +190,23 @@ fn trial_for_test(
     let env = env.clone();
 
     let trial = Trial::test(test.name.clone(), move || {
+        let trial_start = std::time::Instant::now();
         let mut runner = test.create_test_runner(env.as_ref())?;
+        timing_log("trial.create_test_runner", trial_start);
 
-        loop {
+        let t = std::time::Instant::now();
+        let mut ticks = 0u32;
+        let result = loop {
+            ticks += 1;
             match runner.tick()? {
                 TestStatus::Continue => (),
                 TestStatus::Sleep(duration) => sleep(duration),
                 TestStatus::Finished => break Ok(()),
             }
-        }
+        };
+        timing_log(&format!("trial.ticks n={ticks}"), t);
+        timing_log("trial.total", trial_start);
+        result
     });
 
     trial.with_ignored_flag(ignore).with_kind(test_kind)

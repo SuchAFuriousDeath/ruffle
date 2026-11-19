@@ -39,12 +39,23 @@ impl Descriptors {
         device: wgpu::Device,
         queue: wgpu::Queue,
     ) -> Self {
+        let _t = ruffle_render::timing::Timer::new("wgpu.descriptors_new");
         let limits = device.limits();
+        let t = std::time::Instant::now();
         let bind_layouts = BindLayouts::new(&device);
+        ruffle_render::timing::log("wgpu.descriptors.bind_layouts", t);
+        let t = std::time::Instant::now();
         let bitmap_samplers = BitmapSamplers::new(&device);
+        ruffle_render::timing::log("wgpu.descriptors.samplers", t);
+        let t = std::time::Instant::now();
         let shaders = Shaders::new(&device);
+        ruffle_render::timing::log("wgpu.descriptors.shaders", t);
+        let t = std::time::Instant::now();
         let quad = Quad::new(&device);
+        ruffle_render::timing::log("wgpu.descriptors.quad", t);
+        let t = std::time::Instant::now();
         let filters = Filters::new(&device);
+        ruffle_render::timing::log("wgpu.descriptors.filters", t);
         let backend = adapter.get_info().backend;
 
         Self {
@@ -76,6 +87,9 @@ impl Descriptors {
         pipelines
             .entry((msaa_sample_count, format))
             .or_insert_with(|| {
+                let _t = ruffle_render::timing::Timer::new(format!(
+                    "wgpu.copy_pipeline msaa={msaa_sample_count} fmt={format:?}"
+                ));
                 let copy_texture_pipeline_layout =
                     &self
                         .device
@@ -136,6 +150,9 @@ impl Descriptors {
         pipelines
             .entry((msaa_sample_count, format))
             .or_insert_with(|| {
+                let _t = ruffle_render::timing::Timer::new(format!(
+                    "wgpu.pipelines_total msaa={msaa_sample_count} fmt={format:?}"
+                ));
                 Arc::new(Pipelines::new(
                     &self.device,
                     &self.shaders,

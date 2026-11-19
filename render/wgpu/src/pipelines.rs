@@ -333,6 +333,7 @@ fn create_shape_pipeline(
     immediate_size: u32,
     primitive_topology: PrimitiveTopology,
 ) -> ShapePipeline {
+    let _t = ruffle_render::timing::Timer::new(format!("wgpu.pipelines.group {name}"));
     let pipeline_layout_label = create_debug_label!("{} shape pipeline layout", name);
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: pipeline_layout_label.as_deref(),

@@ -1,0 +1,119 @@
+name: CI perf experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ci-*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FEATURES: lzma,jpegxr,imgtests
+  CARGO_INCREMENTAL: '1'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  RUSTUP_WINDOWS_PATH_ADD_BIN: '1'
+  XDG_RUNTIME_DIR: ''
+  RUFFLE_TEST_OPTS: "--compile-mode=compile-and-verify"
+  # Render tests + a few non-render tests.
+  TEST_FILTER: "test(=visual/drawing_api/fills_and_lines) | test(=visual/filters/bevel) | test(=visual/filters/blur_quality) | test(=visual/filters/color_matrix) | test(=visual/filters/glow) | test(=visual/filters/displacement_map) | test(=visual/blend_modes/multiply) | test(=visual/blend_modes/overlay) | test(=visual/cache_as_bitmap/masks) | test(=visual/gradient_issue_9892) | test(=visual/simple_shapes/gradients/focal_radial) | test(=from_shumway/acid/acid) | test(=from_shumway/acid/acid-large) | test(=from_shumway/acid/acid-blend) | test(=from_shumway/acid/acid-filter) | test(=from_shumway/acid/acid-text) | test(=avm2/stage3d_raytrace) | test(=avm2/array_concat) | test(=avm2/string_split) | test(=avm2/xml_basic) | test(=avm1/add) | test(=avm1/add_property)"
+
+jobs:
+  perf:
+    name: Perf / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt install -y $(cat .github/linux-dependencies.txt)
+
+      - name: Environment info (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled, OnAccessProtectionEnabled, BehaviorMonitorEnabled, IoavProtectionEnabled | Format-List
+          Get-MpPreference | Select-Object ExclusionPath, ExclusionProcess, DisableRealtimeMonitoring | Format-List
+          Write-Host "d3d12SDKLayers.dll in System32: $(Test-Path C:\Windows\System32\d3d12SDKLayers.dll)"
+          Write-Host "dxcompiler.dll in System32: $(Test-Path C:\Windows\System32\dxcompiler.dll)"
+          Write-Host "dxil.dll in System32: $(Test-Path C:\Windows\System32\dxil.dll)"
+          Get-WindowsCapability -Online -Name 'Tools.Graphics.DirectX*' | Format-List Name, State
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Include dxcompiler.dll, dxil.dll -ErrorAction SilentlyContinue | ForEach-Object { "$($_.FullName) $($_.VersionInfo.FileVersion)" }
+
+      - name: Cache Cargo output
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "perf"
+          save-if: true
+
+      - name: Install cargo nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Build tests
+        shell: bash
+        run: cargo nextest run --profile ci --cargo-profile ci -p tests --locked --features ${FEATURES} --no-run
+
+      - name: Prepare DXC
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          dll=$(ls "/c/Program Files (x86)/Windows Kits/10/bin/"10.*/x64/dxcompiler.dll | sort -V | tail -1)
+          dir=$(dirname "$dll")
+          echo "Using DXC from $dir"
+          mkdir -p /c/dxc
+          cp "$dir/dxcompiler.dll" "$dir/dxil.dll" /c/dxc/
+          ls -la /c/dxc
+
+      - name: Process launch overhead
+        shell: bash
+        run: |
+          set +e +o pipefail
+          cd tests
+          exe=$(ls -t ../target/ci/deps/regression_tests-*$( [ "$RUNNER_OS" = Windows ] && echo .exe ) | head -1)
+          echo "exe=$exe"
+          for t in avm1/add visual/gradient_issue_9892; do
+            for i in 1 2 3 4; do
+              s=$(date +%s%3N)
+              "$exe" --exact "$t" --nocapture 2>&1 | grep -E "TIMING\] .*main\.(start|end)|test result" || true
+              e=$(date +%s%3N)
+              echo "[LAUNCH] test=$t iter=$i pre=$s post=$e wall=$((e-s))ms"
+            done
+          done
+
+      - name: "Variant: baseline"
+        shell: bash
+        run: .github/scripts/perf_variant.sh baseline
+
+      - name: "Variant: novalid"
+        shell: bash
+        run: .github/scripts/perf_variant.sh novalid
+
+      - name: "Variant: dxc"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: .github/scripts/perf_variant.sh dxc
+
+      - name: "Variant: dxc+novalid"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: .github/scripts/perf_variant.sh dxc_novalid
+
+      - name: "Variant: baseline -j 4"
+        shell: bash
+        run: .github/scripts/perf_variant.sh baseline_j4 4 1

@@ -54,15 +54,21 @@ pub fn create_wgpu_instance(
     backend_options: wgpu::BackendOptions,
     display: Option<Box<dyn wgpu::wgt::WgpuHasDisplayHandle>>,
 ) -> wgpu::Instance {
+    let _t = ruffle_render::timing::Timer::new("wgpu.create_instance");
     let descriptor = match display {
         Some(display) => wgpu::InstanceDescriptor::new_with_display_handle(display),
         None => wgpu::InstanceDescriptor::new_without_display_handle(),
     };
+    let flags = wgpu::InstanceFlags::default()
+        .difference(wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL)
+        .with_env();
+    eprintln!(
+        "[TIMING-INFO] instance flags={flags:?} dx12_compiler={:?}",
+        backend_options.dx12.shader_compiler
+    );
     wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends,
-        flags: wgpu::InstanceFlags::default()
-            .difference(wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL)
-            .with_env(),
+        flags,
         backend_options,
         ..descriptor
     })
@@ -200,6 +206,7 @@ impl WgpuRenderBackend<crate::target::TextureTarget> {
     }
 
     pub fn capture_frame(&self) -> Option<image::RgbaImage> {
+        let _t = ruffle_render::timing::Timer::new("wgpu.capture_frame");
         use crate::utils::buffer_to_image;
         if let Some(buffer) = &self.target.buffer {
             let (buffer, dimensions) = buffer.buffer.inner();
@@ -218,6 +225,7 @@ impl WgpuRenderBackend<crate::target::TextureTarget> {
 
 impl<T: RenderTarget> WgpuRenderBackend<T> {
     pub fn new(descriptors: Arc<Descriptors>, target: T) -> Result<Self, Error> {
+        let _t = ruffle_render::timing::Timer::new("wgpu.backend_new");
         if target.width() > descriptors.limits.max_texture_dimension_2d
             || target.height() > descriptors.limits.max_texture_dimension_2d
         {
@@ -551,6 +559,7 @@ impl<T: RenderTarget + 'static> RenderBackend for WgpuRenderBackend<T> {
         commands: CommandList,
         cache_entries: Vec<BitmapCacheEntry>,
     ) {
+        let _t = ruffle_render::timing::Timer::new("wgpu.submit_frame");
         let Some(frame_output) = self.target.get_next_texture() else {
             // Attempt to recreate the swap chain in this case.
             self.target.resize(
@@ -1191,6 +1200,7 @@ pub async fn request_adapter_and_device(
     surface: Option<&wgpu::Surface<'static>>,
     power_preference: wgpu::PowerPreference,
 ) -> Result<(wgpu::Adapter, wgpu::Device, wgpu::Queue), Error> {
+    let t = std::time::Instant::now();
     let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference,
         compatible_surface: surface,
@@ -1208,7 +1218,15 @@ pub async fn request_adapter_and_device(
             }
         })?;
 
+    ruffle_render::timing::log("wgpu.request_adapter", t);
+    let info = adapter.get_info();
+    eprintln!(
+        "[TIMING-INFO] adapter={:?} backend={:?} driver={:?} {:?}",
+        info.name, info.backend, info.driver, info.driver_info
+    );
+    let t = std::time::Instant::now();
     let (device, queue) = request_device(&adapter).await?;
+    ruffle_render::timing::log("wgpu.request_device", t);
     Ok((adapter, device, queue))
 }
 

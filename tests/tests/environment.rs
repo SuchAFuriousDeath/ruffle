@@ -88,6 +88,20 @@ mod renderer {
     use std::any::Any;
     use std::sync::Arc;
 
+    fn timing_log(label: &str, start: std::time::Instant) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .unwrap_or_default();
+        eprintln!(
+            "[TIMING] t={:.3} pid={} {} {:.3}ms",
+            now,
+            std::process::id(),
+            label,
+            start.elapsed().as_secs_f64() * 1000.0
+        );
+    }
+
     pub struct NativeRenderInterface {
         name: String,
     }
@@ -97,11 +111,15 @@ mod renderer {
         width: u32,
         height: u32,
     ) -> Option<(Box<dyn RenderInterface>, Box<dyn RenderBackend>)> {
+        let t = std::time::Instant::now();
         let descriptors = env.descriptors.clone()?;
+        timing_log("env.get_descriptors", t);
+        let t = std::time::Instant::now();
         let target = TextureTarget::new(&descriptors.device, (width, height)).expect(
             "WGPU Texture Target creation must not fail, everything was checked ahead of time",
         );
 
+        timing_log("env.texture_target_new", t);
         let adapter_info = descriptors.adapter.get_info();
         let name = format!("{}-{:?}", std::env::consts::OS, adapter_info.backend);
 
@@ -147,8 +165,11 @@ mod renderer {
     */
 
     fn create_wgpu_device() -> Option<(wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue)> {
-        let instance =
-            create_wgpu_instance(wgpu::Backends::all(), wgpu::BackendOptions::default(), None);
+        let instance = create_wgpu_instance(
+            wgpu::Backends::all(),
+            wgpu::BackendOptions::from_env_or_default(),
+            None,
+        );
         futures::executor::block_on(request_adapter_and_device(
             wgpu::Backends::all(),
             &instance,
@@ -160,8 +181,13 @@ mod renderer {
     }
 
     pub(super) fn build_wgpu_descriptors() -> Option<Arc<Descriptors>> {
+        let t = std::time::Instant::now();
         let (instance, adapter, device, queue) = create_wgpu_device()?;
+        timing_log("env.create_wgpu_device", t);
 
-        Some(Arc::new(Descriptors::new(instance, adapter, device, queue)))
+        let t = std::time::Instant::now();
+        let d = Some(Arc::new(Descriptors::new(instance, adapter, device, queue)));
+        timing_log("env.build_descriptors_total", t);
+        d
     }
 }

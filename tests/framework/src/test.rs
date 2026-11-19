@@ -52,17 +52,24 @@ impl Test {
     }
 
     pub fn create_test_runner(&self, environment: &impl Environment) -> Result<TestRunner> {
+        let t = std::time::Instant::now();
         self.compile(environment.compile_mode())?;
+        ruffle_render::timing::log("test.compile", t);
 
+        let t = std::time::Instant::now();
         let movie = self.movie()?;
+        ruffle_render::timing::log("test.load_movie", t);
         let viewport_dimensions = self.options.player_options.viewport_dimensions(&movie);
+        let t = std::time::Instant::now();
         let renderer = self
             .options
             .player_options
             .create_renderer(environment, viewport_dimensions);
+        ruffle_render::timing::log("test.create_renderer", t);
 
         let injector = self.input_injector()?;
         let socket_events = self.socket_events()?;
+        let _t = ruffle_render::timing::Timer::new("test.runner_new");
         let runner = TestRunner::new(
             self,
             movie,

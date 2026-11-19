@@ -94,6 +94,9 @@ impl TestRunner {
             test.options.log_fetch.then(|| log.clone()),
         )?;
 
+        let t = std::time::Instant::now();
+        let fonts = test.fonts()?;
+        ruffle_render::timing::log("runner.load_fonts", t);
         let mut builder = PlayerBuilder::new()
             .with_log(log.clone())
             .with_navigator(navigator)
@@ -102,7 +105,7 @@ impl TestRunner {
             .with_max_execution_duration(Duration::from_secs(300))
             .with_fs_commands(Box::new(fs_command_provider))
             .with_ui(TestUiBackend::new(
-                test.fonts()?,
+                fonts,
                 test.font_sorts(),
                 test.options.player_options.device_font_renderer(),
             ))
@@ -120,6 +123,7 @@ impl TestRunner {
         };
 
         // Test player options may override anything set above
+        let t = std::time::Instant::now();
         let player = test
             .options
             .player_options
@@ -127,6 +131,7 @@ impl TestRunner {
             .with_movie(movie)
             .with_autoplay(true) //.tick() requires playback
             .build();
+        ruffle_render::timing::log("runner.player_build", t);
 
         test.options
             .default_fonts

@@ -125,6 +125,9 @@ impl DisplacementMapFilter {
 
     fn pipeline(&self, descriptors: &Descriptors, msaa_sample_count: u32) -> &wgpu::RenderPipeline {
         self.pipelines.get_or_init(msaa_sample_count, || {
+            let _t = ruffle_render::timing::Timer::new(format!(
+                "wgpu.filter_pipeline.displacement_map msaa={msaa_sample_count}"
+            ));
             let label = create_debug_label!("Displacement Map Filter ({} msaa)", msaa_sample_count);
             descriptors
                 .device

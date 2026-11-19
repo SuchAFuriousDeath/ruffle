@@ -112,6 +112,9 @@ impl BevelFilter {
 
     fn pipeline(&self, descriptors: &Descriptors, msaa_sample_count: u32) -> &wgpu::RenderPipeline {
         self.pipeline.get_or_init(msaa_sample_count, || {
+            let _t = ruffle_render::timing::Timer::new(format!(
+                "wgpu.filter_pipeline.bevel msaa={msaa_sample_count}"
+            ));
             let label = create_debug_label!("Bevel Filter ({} msaa)", msaa_sample_count);
             descriptors
                 .device

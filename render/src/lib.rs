@@ -16,6 +16,7 @@ pub mod pixel_bender_support;
 pub mod renderdoc;
 pub mod shader_source;
 pub mod shape_utils;
+pub mod timing;
 pub mod transform;
 pub mod utils;
 

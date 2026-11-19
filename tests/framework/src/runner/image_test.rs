@@ -23,10 +23,16 @@ pub fn capture_and_compare_image(
 
     let actual_image = {
         let mut player_lock = player.lock().unwrap();
+        let t = std::time::Instant::now();
         player_lock.render();
-        render_interface.capture(player_lock.renderer_mut())
+        ruffle_render::timing::log("img.render", t);
+        let t = std::time::Instant::now();
+        let img = render_interface.capture(player_lock.renderer_mut());
+        ruffle_render::timing::log("img.capture", t);
+        img
     };
 
+    let t = std::time::Instant::now();
     let expected_image = {
         let filename = format!("{name}.expected.png");
         let path = base_path.join(&filename)?;
@@ -44,7 +50,10 @@ pub fn capture_and_compare_image(
 
     let ruffle_expected_path = base_path.join(format!("{name}.ruffle.png"))?;
 
+    ruffle_render::timing::log("img.load_expected", t);
+    let t = std::time::Instant::now();
     let diff = test(&image_comparison, name, &actual_image, expected_image)?;
+    ruffle_render::timing::log("img.compare", t);
     let (failure, failure_name) = match (diff, image_comparison.known_failure) {
         (None, false) => {
             return if ruffle_expected_path.exists()? {

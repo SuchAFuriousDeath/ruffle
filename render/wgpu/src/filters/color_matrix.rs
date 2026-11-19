@@ -88,6 +88,9 @@ impl ColorMatrixFilter {
 
     fn pipeline(&self, descriptors: &Descriptors, msaa_sample_count: u32) -> &wgpu::RenderPipeline {
         self.pipelines.get_or_init(msaa_sample_count, || {
+            let _t = ruffle_render::timing::Timer::new(format!(
+                "wgpu.filter_pipeline.color_matrix msaa={msaa_sample_count}"
+            ));
             let label = create_debug_label!("Color Matrix Filter ({} msaa)", msaa_sample_count);
             descriptors
                 .device

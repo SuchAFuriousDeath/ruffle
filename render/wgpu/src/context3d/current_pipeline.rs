@@ -548,6 +548,7 @@ impl CurrentPipeline {
             })
             .collect::<Vec<_>>();
 
+        let _t = ruffle_render::timing::Timer::new("wgpu.context3d_pipeline");
         let compiled = descriptors
             .device
             .create_render_pipeline(&RenderPipelineDescriptor {
