@@ -291,10 +291,8 @@ impl DisplayMatrix {
 
 /// Flash Player replaces 3D scales closer to 0 than this (and `NaN`) with it,
 /// keeping the matrix invertible.
-#[expect(dead_code)]
 const MIN_SCALE_3D: f64 = 1.175494351e-36;
 
-#[expect(dead_code)]
 fn clamp_scale_3d(value: f64) -> f64 {
     if value.is_nan() || value.abs() < MIN_SCALE_3D {
         MIN_SCALE_3D
@@ -349,7 +347,6 @@ impl Transform3D {
     /// time, scales the columns, and keeps the translation as it is. This is
     /// observable when some of the values aren't finite, e.g. a `rotationX`
     /// of `Infinity` only fills the Y and Z columns with `NaN`.
-    #[expect(dead_code)]
     fn recompose(&mut self) {
         let rotation = self
             .rotation
@@ -418,7 +415,6 @@ pub struct DisplayObjectBase<'gc> {
     matrix: Cell<DisplayMatrix>,
     color_transform: Cell<ColorTransform>,
     perspective_projection: Cell<Option<PerspectiveProjection>>,
-    tz: Cell<f64>,
 
     // Cached transform properties `_xscale`, `_yscale`, `_rotation`.
     // These are expensive to calculate, so they will be calculated and cached
@@ -495,7 +491,6 @@ impl Default for DisplayObjectBase<'_> {
             matrix: Default::default(),
             color_transform: Default::default(),
             perspective_projection: Default::default(),
-            tz: Cell::new(0.0),
             rotation: Cell::new(Degrees::from_radians(0.0)),
             scale_x: Cell::new(Percent::from_unit(1.0)),
             scale_y: Cell::new(Percent::from_unit(1.0)),
@@ -556,7 +551,7 @@ impl<'gc> DisplayObjectBase<'gc> {
             },
             color_transform: self.color_transform.get(),
             perspective_projection: self.perspective_projection.get(),
-            tz: self.tz.get(),
+            tz: self.translation_3d(Axis::Z),
         }
     }
 
@@ -624,7 +619,6 @@ impl<'gc> DisplayObjectBase<'gc> {
 
     /// Changes a rotation or scale of the 3D transform, switching to a 3D
     /// transform if this object doesn't have one yet.
-    #[expect(dead_code)]
     fn update_transform_3d(&self, update: impl FnOnce(&mut Transform3D)) -> bool {
         let was_3d = self.is_3d();
 
@@ -637,7 +631,6 @@ impl<'gc> DisplayObjectBase<'gc> {
         })
     }
 
-    #[expect(dead_code)]
     fn set_rotation_3d(&self, axis: Axis, mut degrees: f64) -> bool {
         if degrees.is_nan() {
             degrees = 0.0;
@@ -648,7 +641,6 @@ impl<'gc> DisplayObjectBase<'gc> {
 
     /// Sets a scale of the 3D transform, switching to a 3D transform if this
     /// object doesn't have one yet.
-    #[expect(dead_code)]
     fn set_scale_3d(&self, axis: Axis, value: f64) -> bool {
         let value = clamp_scale_3d(value);
 
@@ -680,6 +672,10 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn set_x(&self, x: Twips) -> bool {
+        if self.is_3d() {
+            return self.set_translation_3d(Axis::X, x.to_pixels());
+        }
+
         let changed = self.x() != x;
         self.mutate_matrix_as_2d(|matrix| matrix.tx = x);
         self.set_transformed_by_script(true);
@@ -691,25 +687,17 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn set_y(&self, y: Twips) -> bool {
+        if self.is_3d() {
+            return self.set_translation_3d(Axis::Y, y.to_pixels());
+        }
+
         let changed = self.y() != y;
         self.mutate_matrix_as_2d(|matrix| matrix.ty = y);
         self.set_transformed_by_script(true);
         changed
     }
 
-    fn z(&self) -> f64 {
-        self.tz.get()
-    }
-
-    fn set_z(&self, tz: f64) -> bool {
-        let changed = self.tz.get() != tz;
-        self.set_transformed_by_script(true);
-        self.tz.set(tz);
-        changed
-    }
-
     /// The translation along the given axis, in pixels.
-    #[expect(dead_code)]
     fn translation_3d(&self, axis: Axis) -> f64 {
         match (self.transform_3d(), axis) {
             (Some(transform), _) => transform.matrix.raw_data[12 + axis.into_usize()].into(),
@@ -725,7 +713,6 @@ impl<'gc> DisplayObjectBase<'gc> {
     /// translations of a 2D transform keep it 2D, rounded to twips. With a
     /// 3D transform, this only changes the translation, keeping the rest of
     /// the matrix as it is.
-    #[expect(dead_code)]
     fn set_translation_3d(&self, axis: Axis, mut value: f64) -> bool {
         match (self.transform_3d(), axis) {
             (None, Axis::X) => return self.set_x(Twips::from_pixels(value)),
@@ -785,11 +772,19 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn rotation(&self) -> Degrees {
+        if let Some(transform) = self.transform_3d() {
+            return transform.rotation[Axis::Z].into();
+        }
+
         self.cache_scale_rotation();
         self.rotation.get()
     }
 
     fn set_rotation(&self, degrees: Degrees) -> bool {
+        if self.is_3d() {
+            return self.set_rotation_3d(Axis::Z, degrees.into());
+        }
+
         self.set_transformed_by_script(true);
         self.cache_scale_rotation();
         let changed = self.rotation.get() != degrees;
@@ -826,11 +821,19 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn scale_x(&self) -> Percent {
+        if let Some(transform) = self.transform_3d() {
+            return Percent::from_unit(transform.scale[Axis::X]);
+        }
+
         self.cache_scale_rotation();
         self.scale_x.get()
     }
 
     fn set_scale_x(&self, mut value: Percent) -> bool {
+        if self.is_3d() {
+            return self.set_scale_3d(Axis::X, value.unit());
+        }
+
         let changed = self.scale_x.get() != value;
         self.set_transformed_by_script(true);
         self.cache_scale_rotation();
@@ -861,11 +864,19 @@ impl<'gc> DisplayObjectBase<'gc> {
     }
 
     fn scale_y(&self) -> Percent {
+        if let Some(transform) = self.transform_3d() {
+            return Percent::from_unit(transform.scale[Axis::Y]);
+        }
+
         self.cache_scale_rotation();
         self.scale_y.get()
     }
 
     fn set_scale_y(&self, mut value: Percent) -> bool {
+        if self.is_3d() {
+            return self.set_scale_3d(Axis::Y, value.unit());
+        }
+
         let changed = self.scale_y.get() != value;
         self.set_transformed_by_script(true);
         self.cache_scale_rotation();
@@ -1187,14 +1198,6 @@ impl<'gc> DisplayObjectBase<'gc> {
 
     fn set_meta_data(this: &Write<Self>, value: Avm2Object<'gc>) {
         unlock!(this, Self, meta_data).set(Some(value));
-    }
-
-    pub fn has_matrix3d_stub(&self) -> bool {
-        self.contains_flag(DisplayObjectFlags::HAS_MATRIX3D_STUB)
-    }
-
-    pub fn set_has_matrix3d_stub(&self, value: bool) {
-        self.set_flag(DisplayObjectFlags::HAS_MATRIX3D_STUB, value)
     }
 }
 
@@ -1914,14 +1917,14 @@ pub trait TDisplayObject<'gc>:
     /// The `z` position in local space.
     /// Returned by the `z` ActionScript properties.
     fn z(self) -> f64 {
-        self.base().z()
+        self.base().translation_3d(Axis::Z)
     }
 
     /// Sets the `z` position of this display object in local space.
     /// Set by the `z` ActionScript properties.
     /// This invalidates any ancestors cacheAsBitmap automatically.
     fn set_z(self, z: f64) {
-        if self.base().set_z(z)
+        if self.base().set_translation_3d(Axis::Z, z)
             && let Some(parent) = self.parent()
         {
             // Self-transform changes are automatically handled,
@@ -3302,9 +3305,6 @@ bitflags! {
 
         /// If this AVM1 object is pending removal (will be removed on the next frame).
         const AVM1_PENDING_REMOVAL     = 1 << 13;
-
-        /// Whether this object has matrix3D (used for stubbing).
-        const HAS_MATRIX3D_STUB        = 1 << 14;
 
         /// Whether this object has been placed by an AVM1 method,
         /// i.e. attachMovie, createEmptyMovieClip, duplicateMovieClip.
