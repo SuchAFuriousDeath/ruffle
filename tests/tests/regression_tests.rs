@@ -22,6 +22,7 @@ use std::thread::sleep;
 mod environment;
 mod external_interface;
 mod shared_object;
+mod supervisor;
 
 const TEST_TOML_NAME: &str = "test.toml";
 
@@ -70,17 +71,49 @@ fn main() {
 
     let env = Arc::new(NativeEnvironment::new(ruffle_test_opts.compile_mode));
 
+    let exit_code = match supervisor::Mode::from_env() {
+        supervisor::Mode::Direct => {
+            let is_listing_only = Arguments::from_args().list;
+            let mut runner = new_runner(&env, &ruffle_test_opts, is_listing_only);
+            runner.with_args_from_libtest_mimic();
+            if runner.run().has_failed() { 101 } else { 0 }
+        }
+        supervisor::Mode::Supervisor { workers } => {
+            // Only list the tests here; the workers decide which ones the
+            // renderer supports, so that the supervisor doesn't set up a GPU.
+            let mut runner = new_runner(&env, &ruffle_test_opts, true);
+            runner.with_args_from_libtest_mimic();
+            supervisor::supervise(&Arguments::from_args(), runner.find_tests(), workers)
+        }
+        supervisor::Mode::Worker => supervisor::serve(&Arguments::from_args(), |key| {
+            let mut runner = new_runner(&env, &ruffle_test_opts, false);
+            runner.with_exact(true).with_filter(Some(key.to_owned()));
+            runner.find_tests()
+        }),
+    };
+
+    // Workaround for shutdown races on slow / software GPU drivers; see
+    // `NativeEnvironment::flush_gpu_with_timeout`.
+    env.flush_gpu_with_timeout(std::time::Duration::from_secs(15));
+
+    std::process::exit(exit_code)
+}
+
+fn new_runner(
+    env: &Arc<NativeEnvironment>,
+    opts: &RuffleTestOpts,
+    is_listing_only: bool,
+) -> FsTestsRunner<Trial> {
     let mut runner = FsTestsRunner::new();
-    let is_listing_only = Arguments::from_args().list;
 
     let env_clone = env.clone();
+    let opts = opts.clone();
     runner
-        .with_args_from_libtest_mimic()
         .with_descriptor_name(Cow::Borrowed(TEST_TOML_NAME))
         .with_root_dir(PathBuf::from("tests/swfs"))
         .with_test_loader(Box::new(move |params, register_trial| {
             for test in load_test_dir(&params.test_dir, params.test_name) {
-                let trial = trial_for_test(&env_clone, &ruffle_test_opts, test, is_listing_only);
+                let trial = trial_for_test(&env_clone, &opts, test, is_listing_only);
                 register_trial(trial);
             }
         }))
@@ -112,13 +145,11 @@ fn main() {
         external_interface_avm2(&*env_clone)
     }));
 
-    let conclusion = runner.run();
+    for trial in supervisor::self_tests() {
+        runner.with_additional_test(trial);
+    }
 
-    // Workaround for shutdown races on slow / software GPU drivers; see
-    // `NativeEnvironment::flush_gpu_with_timeout`.
-    env.flush_gpu_with_timeout(std::time::Duration::from_secs(15));
-
-    conclusion.exit()
+    runner
 }
 
 /// The default filter used when `RUST_LOG` isn't set.
