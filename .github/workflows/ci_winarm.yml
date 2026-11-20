@@ -66,7 +66,8 @@ jobs:
           RUFFLE_TEST_OPTS: "--compile-mode=compile-and-verify"
           RUFFLE_TEST_WORKERS: '4'
           RUFFLE_TEST_NEXTEST_PROFILE: ci
-        run: cargo test --profile ci -p tests --test tests --locked --features ${FEATURES}
+        # --workspace, so that cargo resolves the same features as the build and doesn't rebuild.
+        run: cargo test --profile ci --workspace --test tests --locked --features ${FEATURES}
 
       - name: Run doctests
         shell: bash
