@@ -99,6 +99,11 @@ jobs:
         with:
           tool: cargo-nextest
 
+      - name: Build tests
+        shell: bash
+        # TEST_OPTS has --no-fail-fast, which nextest doesn't allow with --no-run.
+        run: cargo nextest run --profile ci --cargo-profile ci --workspace --locked --features ${FEATURES} --no-run --timings
+
       - name: Run tests
         shell: bash
         env:
@@ -108,6 +113,22 @@ jobs:
       - name: Run doctests
         shell: bash
         run: cargo test --doc --profile ci ${TEST_OPTS} --features ${FEATURES}
+
+      - name: Timing summary
+        if: always()
+        shell: bash
+        run: |
+          python=$(command -v python3 || command -v python)
+          "$python" .github/scripts/timing_summary.py target/cargo-timings/cargo-timing.html target/nextest/ci/junit.xml >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build_timings_${{ matrix.rust_version }}_${{ matrix.os }}
+          path: target/cargo-timings/cargo-timing.html
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Upload images
         if: failure()

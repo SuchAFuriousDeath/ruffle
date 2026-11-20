@@ -10,3 +10,7 @@ test(avm2/stage3d_errors_atf) or \
 test(avm1/netstream_play_flv) or \
 test(avm1/netstream_play_flv_screen)"""
 retries = 4
+
+# Used by the timing summary in CI, see .github/scripts/timing_summary.py.
+[profile.ci.junit]
+path = "junit.xml"
