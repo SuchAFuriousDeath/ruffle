@@ -1,0 +1,11 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 6f528b194..4628ef7e0 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -207,3 +207,6 @@ lto = "off"
+ incremental = true
+ # Right between the defaults of 16 and 256, for crate fragment caching.
+ codegen-units = 64
++# Tests need to unwind. With `abort`, binaries used by tests (and all
++# their dependencies) would be built a second time.
++panic = "unwind"

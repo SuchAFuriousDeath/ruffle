@@ -1,0 +1,115 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 0ef229a16..c767052bc 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4544,15 +4544,6 @@ dependencies = [
+  "once_cell",
+ ]
+ 
+-[[package]]
+-name = "realfft"
+-version = "3.5.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "538895ccf2006b473aafbe8d72770e21038961ab67aae34f3c577485fc703a7d"
+-dependencies = [
+- "rustfft",
+-]
+-
+ [[package]]
+ name = "redox_syscall"
+ version = "0.4.1"
+@@ -4826,13 +4817,13 @@ dependencies = [
+  "png",
+  "quick-xml",
+  "rand",
+- "realfft",
+  "regress",
+  "ruffle_common",
+  "ruffle_macros",
+  "ruffle_render",
+  "ruffle_video",
+  "ruffle_wstr",
++ "rustfft",
+  "scopeguard",
+  "serde",
+  "serde_json",
+diff --git a/core/Cargo.toml b/core/Cargo.toml
+index a19e4b299..79e84e740 100644
+--- a/core/Cargo.toml
++++ b/core/Cargo.toml
+@@ -50,7 +50,7 @@ symphonia = { version = "0.5.5", default-features = false, optional = true }
+ enumset = "1.1.13"
+ bytemuck = { workspace = true, features = ["derive"] }
+ clap = { workspace = true, optional=true }
+-realfft = "3.5.0"
++rustfft = "6.4.1"
+ hashbrown = { workspace = true }
+ scopeguard = "1.2.0"
+ fluent-templates = { workspace = true }
+diff --git a/core/src/avm2/globals/flash/media/sound_mixer.rs b/core/src/avm2/globals/flash/media/sound_mixer.rs
+index e3a3b5ba1..07c7cf34f 100644
+--- a/core/src/avm2/globals/flash/media/sound_mixer.rs
++++ b/core/src/avm2/globals/flash/media/sound_mixer.rs
+@@ -7,10 +7,10 @@ use crate::avm2::parameters::ParametersExt;
+ use crate::avm2::value::Value;
+ use crate::avm2_stub_getter;
+ use crate::display_object::SoundTransform;
+-use std::{
+-    ops::Deref,
+-    sync::{Arc, LazyLock},
+-};
++use rustfft::algorithm::Radix4;
++use rustfft::num_complex::Complex;
++use rustfft::{Fft, FftDirection};
++use std::{ops::Deref, sync::LazyLock};
+ 
+ /// Implements `soundTransform`'s getter
+ ///
+@@ -108,32 +108,30 @@ pub fn compute_spectrum<'gc>(
+ 
+     if fft {
+         // Flash Player appears to do a 2048-long FFT with only the first 512 samples filled in...
+-        static FFT: LazyLock<Arc<dyn realfft::RealToComplex<f32>>> =
+-            LazyLock::new(|| realfft::RealFftPlanner::new().plan_fft_forward(2048));
++        // The input is real, so the first half of the output is the same as
++        // that of a real FFT. A fixed size algorithm avoids instantiating
++        // every algorithm that a planner could choose from.
++        static FFT: LazyLock<Radix4<f32>> =
++            LazyLock::new(|| Radix4::new(2048, FftDirection::Forward));
+ 
+         let fft = FFT.deref();
+ 
+-        let mut in_left = fft.make_input_vec();
+-        let mut in_right = fft.make_input_vec();
++        let mut out_left = vec![Complex::default(); 2048];
++        let mut out_right = vec![Complex::default(); 2048];
+ 
+-        for ((il, ir), h) in in_left
++        for ((ol, or), h) in out_left
+             .iter_mut()
+-            .zip(in_right.iter_mut())
+-            .zip(hist)
++            .zip(out_right.iter_mut())
++            .zip(hist.iter())
+             .take(512)
+         {
+-            *il = h[0];
+-            *ir = h[1];
++            ol.re = h[0];
++            or.re = h[1];
+         }
+ 
+-        let mut out_left = fft.make_output_vec();
+-        let mut out_right = fft.make_output_vec();
+-
+-        // An error is only returned if any of the slices are the wrong size,
+-        // but they can't be, because the fft made them itself.
+-        let mut scratch = fft.make_scratch_vec();
+-        let _ = fft.process_with_scratch(&mut in_left, &mut out_left, &mut scratch);
+-        let _ = fft.process_with_scratch(&mut in_right, &mut out_right, &mut scratch);
++        let mut scratch = vec![Complex::default(); fft.get_inplace_scratch_len()];
++        fft.process_with_scratch(&mut out_left, &mut scratch);
++        fft.process_with_scratch(&mut out_right, &mut scratch);
+ 
+         // This function was reverse-engineered with blood and tears.
+         #[inline]

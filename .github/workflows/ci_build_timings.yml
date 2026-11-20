@@ -57,51 +57,75 @@ jobs:
         run: |
           start=$(date +%s)
           cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
-          echo "BUILD_INCREMENTAL_SECONDS=$(( $(date +%s) - start ))"
+          echo "STEP1_SECONDS=$(( $(date +%s) - start ))"
           mkdir -p timings && cp target/cargo-timings/cargo-timing.html timings/1-incremental.html
 
       - name: "2: Rebuild only the tests binary (link time)"
         shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
         run: |
           touch tests/tests/regression_tests.rs
           if [ "$RUNNER_OS" = "Windows" ]; then
-            link_args="-Clink-arg=/TIME"
+            link_args="-Clink-arg=-time"
           else
-            link_args="-Clink-arg=-Wl,--time-trace,--time-trace-file=$PWD/timings/lld-time-trace.json"
+            link_args="-Clink-arg=-Wl,--time-trace"
           fi
           start=$(date +%s)
-          cargo rustc --profile ci -p tests --test tests --locked --features ${FEATURES} --timings -- $link_args -Wlinker-messages
-          echo "TESTS_BINARY_SECONDS=$(( $(date +%s) - start ))"
+          cargo rustc --profile ci -p tests --test tests --locked --features ${FEATURES} --timings -- $link_args -Wlinker-messages 2>&1 | tee timings/link.log | grep -iE "time|link|Finished|error" | head -60
+          echo "STEP2_SECONDS=$(( $(date +%s) - start ))"
           cp target/cargo-timings/cargo-timing.html timings/2-tests-binary.html
-          ls -la target/ci/deps/tests-* 2>/dev/null | head || true
-          if [ -f timings/lld-time-trace.json ]; then
+          trace=$(find target/ci -name "*.time-trace" -newer tests/tests/regression_tests.rs | head -1)
+          if [ -n "$trace" ]; then
+            cp "$trace" timings/lld.time-trace.json
             python3 -c "
-          import json; d=json.load(open('timings/lld-time-trace.json'))
-          ev=[e for e in d['traceEvents'] if e.get('ph')=='X']
-          tot=[e for e in ev if e['name'].startswith('Total')]
-          for e in sorted(tot, key=lambda e: -e['dur'])[:12]: print('%8.1f ms  %s' % (e['dur']/1000, e['name']))
+          import json; d=json.load(open('timings/lld.time-trace.json'))
+          ev=[e for e in d['traceEvents'] if e.get('ph')=='X' and e['name'].startswith('Total')]
+          for e in sorted(ev, key=lambda e: -e['dur'])[:10]: print('%8.1f ms  %s' % (e['dur']/1000, e['name']))
           "
           fi
 
-      - name: "3: Build the workspace again without incremental"
+      - name: "3: Workspace without incremental"
         shell: bash
         run: |
           members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
           cargo clean --profile ci $members
           start=$(date +%s)
           CARGO_INCREMENTAL=0 cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
-          echo "BUILD_NON_INCREMENTAL_SECONDS=$(( $(date +%s) - start ))"
+          echo "STEP3_SECONDS=$(( $(date +%s) - start ))"
           cp target/cargo-timings/cargo-timing.html timings/3-non-incremental.html
 
-      - name: "4: Build the workspace again with incremental (repeat of 1)"
+      - name: "4: panic=unwind (incremental)"
+        shell: bash
+        run: |
+          git apply .github/scripts/ci-panic-unwind.patch
+          members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
+          cargo clean --profile ci $members
+          start=$(date +%s)
+          cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
+          echo "STEP4_SECONDS=$(( $(date +%s) - start ))"
+          cp target/cargo-timings/cargo-timing.html timings/4-unwind.html
+
+      - name: "5: panic=unwind without incremental"
         shell: bash
         run: |
           members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
           cargo clean --profile ci $members
           start=$(date +%s)
-          cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
-          echo "BUILD_INCREMENTAL_AGAIN_SECONDS=$(( $(date +%s) - start ))"
-          cp target/cargo-timings/cargo-timing.html timings/4-incremental-again.html
+          CARGO_INCREMENTAL=0 cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run --timings
+          echo "STEP5_SECONDS=$(( $(date +%s) - start ))"
+          cp target/cargo-timings/cargo-timing.html timings/5-unwind-non-incremental.html
+
+      - name: "6: panic=unwind + rustfft without incremental"
+        shell: bash
+        run: |
+          git apply .github/scripts/ci-rustfft.patch
+          members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
+          cargo clean --profile ci $members
+          start=$(date +%s)
+          CARGO_INCREMENTAL=0 cargo test --profile ci -p tests --features ${FEATURES} --no-run --timings
+          echo "STEP6_SECONDS=$(( $(date +%s) - start ))"
+          cp target/cargo-timings/cargo-timing.html timings/6-unwind-rustfft.html
 
       - name: Upload timings
         if: always()
