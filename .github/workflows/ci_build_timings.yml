@@ -2,8 +2,6 @@ name: CI build timings experiment
 
 on:
   workflow_dispatch:
-  push:
-    branches: ['ci-*']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

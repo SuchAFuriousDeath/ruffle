@@ -1,0 +1,91 @@
+name: CI Dev Drive experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ci-*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FEATURES: lzma,jpegxr,imgtests
+  CARGO_INCREMENTAL: '1'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  RUSTUP_WINDOWS_PATH_ADD_BIN: '1'
+
+jobs:
+  devdrive:
+    name: Dev Drive / windows-2025
+    runs-on: windows-2025
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo output
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "perf"
+          save-if: false
+
+      - name: Apply panic = "unwind"
+        shell: bash
+        run: git apply .github/scripts/ci-panic-unwind.patch
+
+      - name: Write build script
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/build.sh" <<'SCRIPT'
+          set -e
+          label=$1
+          members=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json,sys; print(' '.join('-p ' + p['name'] for p in json.load(sys.stdin)['packages']))")
+          cargo clean --profile ci $members
+          start=$(date +%s)
+          cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run
+          echo "RESULT ${label}_SECONDS=$(( $(date +%s) - start )) in $(pwd)"
+          SCRIPT
+          # Warm up: make sure all dependencies are built, so every measured
+          # build only compiles the workspace.
+          cargo test --profile ci -p tests --locked --features ${FEATURES} --no-run
+          df -h . || true
+
+      - name: Setup Dev Drive
+        uses: samypr100/setup-dev-drive@v4
+        with:
+          drive-size: 30GB
+          drive-format: ReFS
+          drive-type: Dynamic
+
+      - name: Copy the repository and target dir to the Dev Drive
+        shell: bash
+        run: |
+          echo "DEV_DRIVE=$DEV_DRIVE"
+          start=$(date +%s)
+          mkdir -p "$DEV_DRIVE/ruffle"
+          cp -r . "$DEV_DRIVE/ruffle/"
+          echo "RESULT COPY_SECONDS=$(( $(date +%s) - start ))"
+          du -sh target || true
+
+      - name: "1: NTFS"
+        shell: bash
+        run: bash "$RUNNER_TEMP/build.sh" NTFS_1
+
+      - name: "2: Dev Drive"
+        shell: bash
+        run: cd "$DEV_DRIVE/ruffle" && bash "$RUNNER_TEMP/build.sh" DEVDRIVE_1
+
+      - name: "3: NTFS"
+        shell: bash
+        run: bash "$RUNNER_TEMP/build.sh" NTFS_2
+
+      - name: "4: Dev Drive"
+        shell: bash
+        run: cd "$DEV_DRIVE/ruffle" && bash "$RUNNER_TEMP/build.sh" DEVDRIVE_2
+
+      - name: "5: Dev Drive, no incremental"
+        shell: bash
+        run: cd "$DEV_DRIVE/ruffle" && CARGO_INCREMENTAL=0 bash "$RUNNER_TEMP/build.sh" DEVDRIVE_NOINC
