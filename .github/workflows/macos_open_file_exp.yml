@@ -1,0 +1,136 @@
+name: TEMP macOS open file experiment
+
+on:
+  push:
+    branches: [macos-open-file-exp]
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-open-file
+
+      - name: Build
+        run: cargo build --locked --package ruffle_desktop --features sandbox,fontconfig-dlopen
+
+      - name: Assemble Ruffle.app
+        run: |
+          mkdir bundle
+          cp -r desktop/packages/macOS bundle/Ruffle.app
+          mkdir bundle/Ruffle.app/Contents/MacOS
+          cp target/debug/ruffle_desktop bundle/Ruffle.app/Contents/MacOS/ruffle
+          mkdir bundle/Ruffle.app/Contents/Resources
+          xcrun actool --compile bundle/Ruffle.app/Contents/Resources desktop/assets/Assets.xcassets --minimum-deployment-target 10.0 --platform macosx --warnings --errors --notices --include-all-app-icons
+          codesign --force --deep -s - --entitlements desktop/assets/macOSEntitlements.plist bundle/Ruffle.app
+          codesign -dv --entitlements - bundle/Ruffle.app
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$PWD/bundle/Ruffle.app"
+
+      - name: Prepare SWFs
+        run: |
+          mkdir -p "$RUNNER_TEMP/swfs" "$RUNNER_TEMP/logs"
+          cp tests/tests/swfs/avm2/hello_world/test.swf "$RUNNER_TEMP/swfs/first movie.swf"
+          cp tests/tests/swfs/avm1/xmlnode_proto/test.swf "$RUNNER_TEMP/swfs/second.swf"
+
+      - name: Launch Services info
+        run: |
+          cat > "$RUNNER_TEMP/ls.swift" <<'EOF'
+          import AppKit
+          import UniformTypeIdentifiers
+          let url = URL(fileURLWithPath: CommandLine.arguments[1])
+          print("UTType for .swf:", UTType(filenameExtension: "swf")?.identifier ?? "nil")
+          print("Type of file:", (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType?.identifier ?? "nil")
+          print("Apps:", NSWorkspace.shared.urlsForApplications(toOpen: url).map { $0.path })
+          print("Default:", NSWorkspace.shared.urlForApplication(toOpen: url)?.path ?? "nil")
+          EOF
+          swift "$RUNNER_TEMP/ls.swift" "$RUNNER_TEMP/swfs/second.swf" || true
+
+      - name: Capture icons
+        run: |
+          cat > "$RUNNER_TEMP/icon.swift" <<'EOF'
+          import AppKit
+          let image = NSWorkspace.shared.icon(forFile: CommandLine.arguments[1])
+          image.size = NSSize(width: 256, height: 256)
+          let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
+          try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
+          EOF
+          mkdir -p "$RUNNER_TEMP/logs"
+          swift "$RUNNER_TEMP/icon.swift" "$RUNNER_TEMP/swfs/second.swf" "$RUNNER_TEMP/logs/swf-icon.png"
+          swift "$RUNNER_TEMP/icon.swift" "$PWD/bundle/Ruffle.app" "$RUNNER_TEMP/logs/app-icon.png"
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump | grep -i -B3 -A12 "shockwave-flash" | head -80 || true
+
+      - name: Smoke test
+        run: |
+          set -x
+          export RUST_LOG=warn,ruffle=info,avm_trace=info
+          APP="$PWD/bundle/Ruffle.app"
+          L="$RUNNER_TEMP/logs"
+          count() { pgrep -x ruffle | wc -l | tr -d ' '; }
+
+          # A: launch with a file. B: open another file while running.
+          open --env RUST_LOG="$RUST_LOG" --stdout "$L/a.out" --stderr "$L/a.err" -a "$APP" "$RUNNER_TEMP/swfs/first movie.swf" --args --volume 0
+          sleep 20
+          screencapture -x "$L/a.png" || true
+          echo "instances: $(count)"
+          open -a "$APP" "$RUNNER_TEMP/swfs/second.swf"
+          sleep 10
+          screencapture -x "$L/b.png" || true
+          echo "instances: $(count)"
+          pkill -x ruffle || true
+          sleep 3
+
+          # C: launch without a file, then open one.
+          open --env RUST_LOG="$RUST_LOG" --stdout "$L/c.out" --stderr "$L/c.err" -a "$APP" --args --volume 0
+          sleep 20
+          open -a "$APP" "$RUNNER_TEMP/swfs/second.swf"
+          sleep 10
+          screencapture -x "$L/c.png" || true
+          echo "instances: $(count)"
+          pkill -x ruffle || true
+          sleep 3
+
+          # D: open via the default handler for .swf (like a Finder double-click).
+          open "$RUNNER_TEMP/swfs/second.swf" || true
+          sleep 20
+          echo "instances: $(count)"
+          pgrep -lf ruffle || true
+          pkill -x ruffle || true
+
+          for f in "$L"/*.out "$L"/*.err; do echo "===== $f"; cat "$f"; done
+          find ~/Library/Containers/rs.ruffle.ruffle -name '*.log' -newer "$APP" -print -exec cat {} \; 2>/dev/null || true
+          log show --last 5m --predicate 'process == "ruffle" OR eventMessage CONTAINS "rs.ruffle"' --style compact | tail -n 80 || true
+
+      - name: Check results
+        run: |
+          L="$RUNNER_TEMP/logs"
+          ok=1
+          grep -q "first%20movie.swf" "$L/a.out" && grep -q "Hello world!" "$L/a.out" || { echo "A failed"; ok=0; }
+          grep -q "second.swf" "$L/a.out" && grep -q "Success!" "$L/a.out" || { echo "B failed"; ok=0; }
+          grep -q "second.swf" "$L/c.out" && grep -q "Success!" "$L/c.out" || { echo "C failed"; ok=0; }
+          [ $ok = 1 ]
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: logs-${{ matrix.os }}
+          path: ${{ runner.temp }}/logs
+
+      - name: Zip Ruffle.app
+        if: always()
+        run: ditto -c -k --keepParent bundle/Ruffle.app Ruffle-app.zip
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ruffle-app-${{ matrix.os }}
+          path: Ruffle-app.zip
