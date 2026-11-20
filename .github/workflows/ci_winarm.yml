@@ -1,0 +1,73 @@
+name: Windows ARM experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci-winarm]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FEATURES: lzma,jpegxr,imgtests
+  TEST_OPTS: --workspace --locked --no-fail-fast -j 4
+  CARGO_INCREMENTAL: '1'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  RUSTUP_WINDOWS_PATH_ADD_BIN: '1'
+
+jobs:
+  test:
+    name: ${{ matrix.mode }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-11-arm]
+        mode: [baseline, fast]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo output
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "winarm"
+          save-if: ${{ matrix.mode == 'baseline' }}
+
+      - name: Install cargo nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Build tests
+        shell: bash
+        run: cargo nextest run --profile ci --cargo-profile ci --workspace --locked --features ${FEATURES} --no-run
+
+      - name: Run tests (nextest, like CI)
+        if: matrix.mode == 'baseline'
+        shell: bash
+        env:
+          RUFFLE_TEST_OPTS: "--compile-mode=compile-and-verify"
+        run: cargo nextest run --profile ci --cargo-profile ci ${TEST_OPTS} --features ${FEATURES}
+
+      - name: Run tests except the SWF tests (nextest)
+        if: matrix.mode == 'fast'
+        shell: bash
+        run: cargo nextest run --profile ci --cargo-profile ci ${TEST_OPTS} --features ${FEATURES} -E 'not binary_id(tests::tests)'
+
+      - name: Run SWF tests (supervisor)
+        if: matrix.mode == 'fast'
+        shell: bash
+        env:
+          RUFFLE_TEST_OPTS: "--compile-mode=compile-and-verify"
+          RUFFLE_TEST_WORKERS: '4'
+          RUFFLE_TEST_NEXTEST_PROFILE: ci
+        run: cargo test --profile ci -p tests --test tests --locked --features ${FEATURES}
+
+      - name: Run doctests
+        shell: bash
+        run: cargo test --doc --profile ci ${TEST_OPTS} --features ${FEATURES}
