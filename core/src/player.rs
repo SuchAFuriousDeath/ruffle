@@ -313,6 +313,13 @@ enum RunState {
     Stepping,
 }
 
+/// Whether `Player::render_impl` draws the frame.
+#[derive(Clone, Copy)]
+enum DrawFrame {
+    Yes,
+    No,
+}
+
 pub struct Player {
     /// The version of the player we're emulating.
     ///
@@ -2031,6 +2038,19 @@ impl Player {
 
     #[instrument(level = "debug", skip_all)]
     pub fn render(&mut self) {
+        self.render_impl(DrawFrame::Yes);
+    }
+
+    /// Does everything `render` does, except drawing the frame itself.
+    ///
+    /// `Event.RENDER` is dispatched, the display list is updated (e.g. pending
+    /// `scrollRect` changes are applied) and bitmap caches are drawn, but the
+    /// frame isn't. This is for frames that nobody looks at, like in tests.
+    pub fn render_without_drawing_frame(&mut self) {
+        self.render_impl(DrawFrame::No);
+    }
+
+    fn render_impl(&mut self, draw_frame: DrawFrame) {
         let invalidated = self.enter_arena(|_, gc_root, _| gc_root.stage.invalidated());
 
         if invalidated {
@@ -2081,6 +2101,11 @@ impl Player {
 
             (cache_draws, commands)
         });
+
+        let commands = match draw_frame {
+            DrawFrame::Yes => commands,
+            DrawFrame::No => CommandList::new(),
+        };
 
         self.renderer
             .submit_frame(background_color, commands, cache_draws);
