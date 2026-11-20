@@ -2,7 +2,7 @@ name: Test Rust
 
 on:
   push:
-    branches: [master]
+    branches: [master, ci-timing-summary]
   pull_request:
     branches: [master]
 
