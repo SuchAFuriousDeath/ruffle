@@ -1,0 +1,29 @@
+diff --git a/core/src/player.rs b/core/src/player.rs
+index 0ba06abe0..74bed12b9 100644
+--- a/core/src/player.rs
++++ b/core/src/player.rs
+@@ -2095,14 +2095,16 @@ impl Player {
+             (cache_draws, commands)
+         });
+ 
+-        let commands = if draw_frame {
+-            commands
+-        } else {
+-            CommandList::new()
+-        };
+-
+-        self.renderer
+-            .submit_frame(background_color, commands, cache_draws);
++        if draw_frame {
++            self.renderer
++                .submit_frame(background_color, commands, cache_draws);
++        } else if !cache_draws.is_empty() {
++            // Even an empty frame gets cleared and copied to the target, which
++            // is expensive on software renderers, so only submit it when the
++            // bitmap caches need updating.
++            self.renderer
++                .submit_frame(background_color, CommandList::new(), cache_draws);
++        }
+ 
+         self.needs_render = false;
+     }
