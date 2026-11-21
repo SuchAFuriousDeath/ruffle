@@ -85,13 +85,6 @@ pub struct FileReferenceData<'gc> {
 }
 
 const PROTO_DECLS: StaticDeclarations = declare_static_properties! {
-    "name" => property(name; DONT_ENUM);
-    "type" => property(file_type; DONT_ENUM);
-    "size" => property(size; DONT_ENUM);
-    "modificationDate" => property(modification_date; DONT_ENUM);
-    "creationDate" => property(creation_date; DONT_ENUM);
-    "creator" => property(creator; DONT_ENUM);
-    "postData" => property(post_data, set_post_data; DONT_ENUM);
     "browse" => method(browse; DONT_ENUM);
     "upload" => method(upload; DONT_ENUM);
     "download" => method(download; DONT_ENUM);
@@ -99,6 +92,16 @@ const PROTO_DECLS: StaticDeclarations = declare_static_properties! {
 };
 
 const OBJECT_DECLS: StaticDeclarations = declare_static_properties! {};
+
+const INSTANCE_DECLS: StaticDeclarations = declare_static_properties! {
+    "name" => property(name);
+    "type" => property(file_type);
+    "size" => property(size);
+    "modificationDate" => property(modification_date);
+    "creationDate" => property(creation_date);
+    "creator" => property(creator);
+    "postData" => property(post_data, set_post_data);
+};
 
 pub fn create_class<'gc>(
     context: &mut DeclContext<'_, 'gc>,
@@ -452,6 +455,9 @@ fn constructor<'gc>(
     );
 
     define_listeners(activation, this, [], Attribute::empty());
+
+    let mut context = DeclContext::from_activation(activation);
+    context.define_properties_on(this, INSTANCE_DECLS(&context));
 
     Ok(Value::Undefined)
 }

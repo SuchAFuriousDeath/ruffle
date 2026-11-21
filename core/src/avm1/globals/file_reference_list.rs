@@ -31,6 +31,14 @@ fn constructor<'gc>(
 ) -> Result<Value<'gc>, Error<'gc>> {
     define_listeners(activation, this, [], Attribute::empty());
 
+    let file_list = ArrayBuilder::empty(activation);
+    this.define_value(
+        activation.gc(),
+        istr!("fileList"),
+        file_list.into(),
+        Attribute::empty(),
+    );
+
     Ok(Value::Undefined)
 }
 
