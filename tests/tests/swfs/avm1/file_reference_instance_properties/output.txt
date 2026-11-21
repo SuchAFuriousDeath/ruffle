@@ -1,0 +1,11 @@
+FileReference: _listeners,creationDate,creator,modificationDate,name,postData,size,type
+FileReferenceList: _listeners,fileList
+frl.fileList: object , own: true
+fr.name own: true, proto: false
+fr2.name after set: undefined
+fr2.postData after set: pd
+delete fr2.name: true, own after: false
+frl2.fileList.length: 0, instanceof Array: true
+delete frl2.fileList: true, own after: false
+two lists share fileList: false
+new postData: undefined [undefined]
