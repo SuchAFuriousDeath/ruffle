@@ -1,0 +1,30 @@
+// transform.matrix3D returns the same object while the transform is 3D
+same object: true
+after z, x and rotation: same object true, rawData = 0.7071067690849304,0.7071067690849304,0,0,-0.7071067690849304,0.7071067690849304,0,0,0,0,1,0,50,0,2,1
+same object through another Transform: true
+
+// Changes to the object apply to the display object
+appendTranslation(10, 20, 30): x=10 y=20 z=31 rotation=30.000000834826057 scaleX=1 scaleY=1
+appendRotation(10, Z_AXIS): x=6.375114440917969 y=21.43263816833496 z=31 rotation=39.99999883637168 scaleX=1 scaleY=1
+appendScale(2, 1, 1): x=12.750228881835938 y=21.43263816833496 z=31 rotation=22.76047842785444 scaleX=1.6614667177200317 scaleY=1.203755497932434
+rawData = ...: x=7 y=8 z=9 rotation=0 scaleX=3 scaleY=3
+identity(): x=0 y=0 z=0 rotation=0 scaleX=1 scaleY=1
+
+// Changes to the object decompose the rotation and scale again
+rotation = 720: 720
+then appendTranslation(1, 0, 0): 0.000020035824523901324
+
+// An assigned Matrix3D is kept
+same object: true
+after x = 9 and scaleY = 3: rawData = 2,0,0,0,0,3,0,0,0,0,2,0,9,0,0,1
+after appendTranslation(0, 33, 0): y = 33
+assigned again: same object true
+
+// Going back to a 2D transform unbinds the object
+matrix = (identity), then appendTranslation(1, 0, 0): x = 0, matrix3D = null
+z = 3: same object as before false
+old object appendTranslation(100, 0, 0): x = 0
+matrix3D = null, then appendTranslation(1, 0, 0): x = 0, matrix3D = null
+
+// Copies aren't bound
+clone().appendTranslation(50, 0, 0): x = 0
