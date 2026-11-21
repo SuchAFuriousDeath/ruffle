@@ -165,13 +165,13 @@ pub fn name<'gc>(
 }
 
 pub fn post_data<'gc>(
-    activation: &mut Activation<'_, 'gc>,
+    _activation: &mut Activation<'_, 'gc>,
     this: Object<'gc>,
     _args: &[Value<'gc>],
 ) -> Result<Value<'gc>, Error<'gc>> {
     if let NativeObject::FileReference(file_ref) = this.native() {
         let post_data = file_ref.0.post_data.get();
-        return Ok(post_data.unwrap_or_else(|| istr!("")).into());
+        return Ok(post_data.map_or(Value::Undefined, Into::into));
     }
 
     Ok(Value::Undefined)
