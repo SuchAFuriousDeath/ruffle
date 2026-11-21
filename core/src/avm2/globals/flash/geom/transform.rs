@@ -8,9 +8,10 @@ use crate::avm2::object::Matrix3DObject;
 use crate::avm2::parameters::ParametersExt;
 use crate::avm2::{Activation, Error, Object, TObject as _, Value};
 use crate::display_object::{
-    BoundsMode, DisplayMatrix, DisplayObject, TDisplayObject, Transform3D,
+    BoundsMode, DisplayMatrix, DisplayObject, DisplayObjectBase, TDisplayObject,
 };
-use crate::{avm2_stub_getter, avm2_stub_method, avm2_stub_setter};
+use crate::{avm2_stub_method, avm2_stub_setter};
+use gc_arena::Gc;
 use ruffle_render::matrix::Matrix;
 use ruffle_render::matrix3d::Matrix3D;
 use ruffle_render::perspective_projection::PerspectiveProjection;
@@ -280,15 +281,34 @@ pub fn get_matrix_3d<'gc>(
     _args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
     let this = this.as_object().unwrap();
+    let display_object = get_display_object(this);
 
-    // FIXME: Flash Player returns the same Matrix3D object every time, and
-    // changes to it apply to the display object.
-    avm2_stub_getter!(activation, "flash.geom.Transform", "matrix3D");
+    let Some(transform) = display_object.base().transform_3d() else {
+        return Ok(Value::Null);
+    };
 
-    match get_display_object(this).base().transform_3d() {
-        Some(transform) => Ok(Matrix3DObject::new(activation.context, transform.matrix).into()),
-        None => Ok(Value::Null),
+    // Flash Player returns the same object for as long as the display object
+    // has a 3D transform, and changes to it apply to the display object.
+    if let Some(object) = display_object.base().matrix3d_object() {
+        return Ok(object.into());
     }
+
+    let object = Matrix3DObject::new(activation.context, transform.matrix);
+    bind_matrix_3d(activation, display_object, object);
+
+    Ok(object.into())
+}
+
+fn bind_matrix_3d<'gc>(
+    activation: &mut Activation<'_, 'gc>,
+    display_object: DisplayObject<'gc>,
+    object: Matrix3DObject<'gc>,
+) {
+    let mc = activation.gc();
+    let base = Gc::write(mc, display_object.base());
+
+    DisplayObjectBase::set_matrix3d_object(base, object);
+    object.set_owner(mc, display_object.base());
 }
 
 pub fn set_matrix_3d<'gc>(
@@ -297,26 +317,24 @@ pub fn set_matrix_3d<'gc>(
     args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
     let this = this.as_object().unwrap();
-
-    // FIXME: Flash Player keeps the given Matrix3D object, and changes to it
-    // apply to the display object.
-    avm2_stub_setter!(activation, "flash.geom.Transform", "matrix3D");
-
     let display_object = get_display_object(this);
 
+    // Flash Player keeps the given object, and changes to it apply to the
+    // display object.
     match args.try_get_object(0) {
-        Some(obj) => {
-            let matrix3d = obj.as_matrix3d_object().unwrap().matrix();
-            display_object
-                .base()
-                .set_display_matrix(DisplayMatrix::Matrix3D(Transform3D::from_matrix(matrix3d)));
+        Some(object) => {
+            let object = object.as_matrix3d_object().unwrap();
+            display_object.set_matrix_3d(object.matrix());
+            bind_matrix_3d(activation, display_object, object);
         }
-        None => display_object.set_matrix(Matrix::IDENTITY),
-    }
+        None => {
+            display_object.set_matrix(Matrix::IDENTITY);
+            display_object.set_transformed_by_script(true);
 
-    display_object.set_transformed_by_script(true);
-    if let Some(parent) = display_object.parent() {
-        parent.invalidate_cached_bitmap();
+            if let Some(parent) = display_object.parent() {
+                parent.invalidate_cached_bitmap();
+            }
+        }
     }
 
     Ok(Value::Undefined)

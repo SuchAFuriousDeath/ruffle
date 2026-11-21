@@ -1,6 +1,7 @@
 use crate::avm1::{
     ActivationIdentifier as Avm1ActivationIdentifier, Object as Avm1Object, Value as Avm1Value,
 };
+use crate::avm2::object::Matrix3DObject;
 use crate::avm2::{
     Activation as Avm2Activation, Avm2, Error as Avm2Error, LoaderInfoObject,
     Multiname as Avm2Multiname, Object as Avm2Object, StageObject as Avm2StageObject, TObject as _,
@@ -445,6 +446,13 @@ pub struct DisplayObjectBase<'gc> {
     color_transform: Cell<ColorTransform>,
     perspective_projection: Cell<Option<PerspectiveProjection>>,
 
+    /// The object returned by `transform.matrix3D`, which stays bound to the
+    /// 3D transform until this object goes back to a 2D one.
+    matrix3d_object: Lock<Option<Matrix3DObject<'gc>>>,
+
+    /// Whether `matrix3d_object` is still bound to the 3D transform.
+    matrix3d_object_bound: Cell<bool>,
+
     // Cached transform properties `_xscale`, `_yscale`, `_rotation`.
     // These are expensive to calculate, so they will be calculated and cached
     // when AS requests one of these properties.
@@ -524,6 +532,8 @@ impl Default for DisplayObjectBase<'_> {
             scale_x: Cell::new(Percent::from_unit(1.0)),
             scale_y: Cell::new(Percent::from_unit(1.0)),
             skew: Cell::new(0.0),
+            matrix3d_object: Lock::new(None),
+            matrix3d_object_bound: Cell::new(false),
             masker: Lock::new(None),
             maskee: Lock::new(None),
             meta_data: Lock::new(None),
@@ -603,9 +613,7 @@ impl<'gc> DisplayObjectBase<'gc> {
 
     /// Sets a 2D matrix, discarding any 3D transform.
     pub fn set_matrix(&self, matrix: Matrix) {
-        self.matrix.set(DisplayMatrix::Matrix2D(matrix));
-
-        self.set_scale_rotation_cached(false);
+        self.set_display_matrix(DisplayMatrix::Matrix2D(matrix));
     }
 
     pub fn display_matrix(&self) -> DisplayMatrix {
@@ -615,6 +623,45 @@ impl<'gc> DisplayObjectBase<'gc> {
     pub fn set_display_matrix(&self, matrix: DisplayMatrix) {
         self.matrix.set(matrix);
         self.set_scale_rotation_cached(false);
+        self.update_matrix3d_object();
+    }
+
+    /// Gives this object a 3D transform with the given matrix.
+    /// This invalidates any ancestors cacheAsBitmap automatically.
+    pub fn set_matrix_3d(&self, matrix: Matrix3D) {
+        self.set_display_matrix(DisplayMatrix::Matrix3D(Transform3D::from_matrix(matrix)));
+        self.set_transformed_by_script(true);
+
+        if let Some(parent) = self.parent() {
+            parent.invalidate_cached_bitmap();
+        }
+    }
+
+    /// The object returned by `transform.matrix3D`, if it's still bound to
+    /// the 3D transform.
+    pub fn matrix3d_object(&self) -> Option<Matrix3DObject<'gc>> {
+        self.matrix3d_object
+            .get()
+            .filter(|_| self.matrix3d_object_bound.get())
+    }
+
+    /// Binds the object returned by `transform.matrix3D` to the 3D transform.
+    pub fn set_matrix3d_object(this: &Write<Self>, object: Matrix3DObject<'gc>) {
+        unlock!(this, Self, matrix3d_object).set(Some(object));
+        this.matrix3d_object_bound.set(true);
+    }
+
+    /// Updates the object returned by `transform.matrix3D` after the
+    /// transform changed, or unbinds it after going back to a 2D transform.
+    fn update_matrix3d_object(&self) {
+        match self.matrix.get() {
+            DisplayMatrix::Matrix2D(_) => self.matrix3d_object_bound.set(false),
+            DisplayMatrix::Matrix3D(transform) => {
+                if let Some(object) = self.matrix3d_object() {
+                    object.store_matrix(transform.matrix);
+                }
+            }
+        }
     }
 
     pub fn transform_3d(&self) -> Option<Transform3D> {
@@ -633,6 +680,7 @@ impl<'gc> DisplayObjectBase<'gc> {
         let result = mutate(&mut transform);
 
         self.matrix.set(DisplayMatrix::Matrix3D(transform));
+        self.update_matrix3d_object();
         self.set_transformed_by_script(true);
 
         result
@@ -1823,6 +1871,13 @@ pub trait TDisplayObject<'gc>:
     /// It is the callers responsibility to do so.
     fn set_matrix(self, matrix: Matrix) {
         self.base().set_matrix(matrix);
+    }
+
+    /// Gives this object a 3D transform with the given matrix.
+    /// This invalidates any ancestors cacheAsBitmap automatically.
+    #[no_dynamic]
+    fn set_matrix_3d(self, matrix: Matrix3D) {
+        self.base().set_matrix_3d(matrix);
     }
 
     /// Sets the color transform of this object.

@@ -80,7 +80,7 @@ pub fn get_raw_data<'gc>(
 
 /// Implements `Matrix3D.rawData`'s setter.
 pub fn set_raw_data<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
@@ -96,27 +96,27 @@ pub fn set_raw_data<'gc>(
     let raw_data: RawData =
         std::array::from_fn(|i| value.get_optional(i).map(|v| v.as_f64() as f32).unwrap());
 
-    this.replace_matrix(Matrix3D { raw_data });
+    this.set_matrix(activation.gc(), Matrix3D { raw_data });
 
     Ok(Value::Undefined)
 }
 
 /// Implements `Matrix3D.identity`.
 pub fn identity<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     _args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
     let this = this.as_object().unwrap().as_matrix3d_object().unwrap();
 
-    this.replace_matrix(Matrix3D::IDENTITY);
+    this.set_matrix(activation.gc(), Matrix3D::IDENTITY);
 
     Ok(Value::Undefined)
 }
 
 /// Implements `Matrix3D.appendTranslation`.
 pub fn append_translation<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
@@ -125,10 +125,11 @@ pub fn append_translation<'gc>(
     let y = args.get_f64(1);
     let z = args.get_f64(2);
 
-    let mut matrix = this.matrix_mut();
-    matrix.raw_data[12] += x as f32;
-    matrix.raw_data[13] += y as f32;
-    matrix.raw_data[14] += z as f32;
+    this.update_matrix(activation.gc(), |matrix| {
+        matrix.raw_data[12] += x as f32;
+        matrix.raw_data[13] += y as f32;
+        matrix.raw_data[14] += z as f32;
+    });
 
     Ok(Value::Undefined)
 }
@@ -150,7 +151,7 @@ pub fn append_scale<'gc>(
 
     let scale = Matrix3D::scale(x as f32, y as f32, z as f32);
     let result = scale.multiply(&this.matrix_ref());
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(Value::Undefined)
 }
@@ -168,7 +169,7 @@ pub fn append<'gc>(
         .unwrap();
 
     let result = lhs.matrix_ref().multiply(&this.matrix_ref());
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(Value::Undefined)
 }
@@ -186,14 +187,14 @@ pub fn prepend<'gc>(
         .unwrap();
 
     let result = this.matrix_ref().multiply(&rhs.matrix_ref());
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(Value::Undefined)
 }
 
 /// Implements `Matrix3D.prependTranslation`.
 pub fn prepend_translation<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
@@ -204,7 +205,7 @@ pub fn prepend_translation<'gc>(
 
     let translation = Matrix3D::translate(x as f32, y as f32, z as f32);
     let result = this.matrix_ref().multiply(&translation);
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(Value::Undefined)
 }
@@ -226,7 +227,7 @@ pub fn prepend_scale<'gc>(
 
     let scale = Matrix3D::scale(x as f32, y as f32, z as f32);
     let result = this.matrix_ref().multiply(&scale);
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(Value::Undefined)
 }
@@ -292,7 +293,7 @@ fn rotate<'gc>(
         Composition::Append => rotation.multiply(&this.matrix_ref()),
         Composition::Prepend => this.matrix_ref().multiply(&rotation),
     };
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(Value::Undefined)
 }
@@ -375,12 +376,13 @@ pub fn copy_column_from<'gc>(
 
     let [x, y, z, w] = read_vector3d(vector3d);
 
-    let mut matrix = this.matrix_mut();
     let base = column as usize * 4;
-    matrix.raw_data[base] = x as f32;
-    matrix.raw_data[base + 1] = y as f32;
-    matrix.raw_data[base + 2] = z as f32;
-    matrix.raw_data[base + 3] = w as f32;
+    this.update_matrix(activation.gc(), |matrix| {
+        matrix.raw_data[base] = x as f32;
+        matrix.raw_data[base + 1] = y as f32;
+        matrix.raw_data[base + 2] = z as f32;
+        matrix.raw_data[base + 3] = w as f32;
+    });
 
     Ok(Value::Undefined)
 }
@@ -426,12 +428,13 @@ pub fn copy_row_from<'gc>(
 
     let [x, y, z, w] = read_vector3d(vector3d);
 
-    let mut matrix = this.matrix_mut();
     let base = row as usize;
-    matrix.raw_data[base] = x as f32;
-    matrix.raw_data[base + 4] = y as f32;
-    matrix.raw_data[base + 8] = z as f32;
-    matrix.raw_data[base + 12] = w as f32;
+    this.update_matrix(activation.gc(), |matrix| {
+        matrix.raw_data[base] = x as f32;
+        matrix.raw_data[base + 4] = y as f32;
+        matrix.raw_data[base + 8] = z as f32;
+        matrix.raw_data[base + 12] = w as f32;
+    });
 
     Ok(Value::Undefined)
 }
@@ -447,7 +450,7 @@ pub fn copy_from<'gc>(
         .get_object(activation, 0, "source")?
         .as_matrix3d_object()
         .unwrap();
-    this.replace_matrix(source.matrix());
+    this.set_matrix(activation.gc(), source.matrix());
     Ok(Value::Undefined)
 }
 
@@ -475,7 +478,7 @@ pub fn copy_raw_data_from<'gc>(
         matrix.transpose_in_place();
     }
 
-    this.replace_matrix(matrix);
+    this.set_matrix(activation.gc(), matrix);
 
     Ok(Value::Undefined)
 }
@@ -522,7 +525,7 @@ pub fn copy_to_matrix_3d<'gc>(
         .get_object(activation, 0, "dest")?
         .as_matrix3d_object()
         .unwrap();
-    dest.replace_matrix(this.matrix());
+    dest.set_matrix(activation.gc(), this.matrix());
     Ok(Value::Undefined)
 }
 
@@ -553,7 +556,7 @@ pub fn get_position<'gc>(
 
 /// Implements `Matrix3D.position`'s setter.
 pub fn set_position<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
@@ -564,22 +567,23 @@ pub fn set_position<'gc>(
 
     let [x, y, z, _] = read_vector3d(val);
 
-    let mut matrix = this.matrix_mut();
-    matrix.raw_data[12] = x as f32;
-    matrix.raw_data[13] = y as f32;
-    matrix.raw_data[14] = z as f32;
+    this.update_matrix(activation.gc(), |matrix| {
+        matrix.raw_data[12] = x as f32;
+        matrix.raw_data[13] = y as f32;
+        matrix.raw_data[14] = z as f32;
+    });
 
     Ok(Value::Undefined)
 }
 
 /// Implements `Matrix3D.transpose`.
 pub fn transpose<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     _args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
     let this = this.as_object().unwrap().as_matrix3d_object().unwrap();
-    this.matrix_mut().transpose_in_place();
+    this.update_matrix(activation.gc(), Matrix3D::transpose_in_place);
     Ok(Value::Undefined)
 }
 
@@ -708,7 +712,7 @@ pub fn get_determinant<'gc>(
 
 /// Implements `Matrix3D.invert`.
 pub fn invert<'gc>(
-    _activation: &mut Activation<'_, 'gc>,
+    activation: &mut Activation<'_, 'gc>,
     this: Value<'gc>,
     _args: FunctionArgs<'_, 'gc>,
 ) -> Result<Value<'gc>, Error<'gc>> {
@@ -717,7 +721,7 @@ pub fn invert<'gc>(
         return Ok(false.into());
     };
 
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(true.into())
 }
@@ -820,7 +824,7 @@ pub fn recompose<'gc>(
     // The order of operations is observable when some of the components are not
     // finite.
     let result = translation.multiply(&rotation.multiply(&scale));
-    this.replace_matrix(result);
+    this.set_matrix(activation.gc(), result);
 
     Ok(true.into())
 }
