@@ -1,0 +1,14 @@
+num_ticks = 1
+
+[[compilers]]
+type = "Asc"
+target = "test.swf"
+class = "Test"
+scripts = ["Test.as"]
+swf_version = 15
+
+[image_comparisons.output]
+known_failure = true
+
+[player_options]
+with_renderer = { optional = false }

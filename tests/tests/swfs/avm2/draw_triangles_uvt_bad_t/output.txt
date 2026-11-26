@@ -1,0 +1,13 @@
+0 t all 0: rect (x=0, y=0, w=80, h=80)
+1 t all -1: rect (x=0, y=0, w=80, h=80)
+2 t one 0: rect (x=0, y=0, w=80, h=80)
+3 t one -1: rect (x=0, y=0, w=80, h=80)
+4 t one NaN: rect (x=0, y=0, w=80, h=80)
+5 t one Infinity: rect (x=0, y=0, w=80, h=80)
+6 t tiny: rect (x=0, y=0, w=80, h=80)
+7 t one tiny: rect (x=0, y=0, w=80, h=80)
+8 u one NaN: rect (x=0, y=0, w=80, h=80)
+9 v one Infinity: rect (x=0, y=0, w=80, h=80)
+10 t huge: rect (x=0, y=0, w=80, h=80)
+11 t all -1 mixed: rect (x=0, y=0, w=80, h=80)
+Done
