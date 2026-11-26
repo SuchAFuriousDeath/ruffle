@@ -1,0 +1,13 @@
+0 none positive: rect (x=5, y=-35, w=30, h=70)
+1 shape scaleX -1 positive: rect (x=5, y=-35, w=30, h=70)
+2 parent scaleX -1 positive: rect (x=5, y=-35, w=30, h=70)
+3 shape scaleY -1 positive: rect (x=5, y=-35, w=30, h=70)
+4 rotation 180 positive: rect (x=5, y=-35, w=30, h=70)
+5 shape and parent scaleX -1 positive: rect (x=5, y=-35, w=30, h=70)
+6 none negative: rect (x=-35, y=-35, w=30, h=70)
+7 shape scaleX -1 negative: rect (x=-35, y=-35, w=30, h=70)
+8 parent scaleX -1 negative: rect (x=-35, y=-35, w=30, h=70)
+9 shape scaleY -1 negative: rect (x=-35, y=-35, w=30, h=70)
+10 rotation 180 negative: rect (x=-35, y=-35, w=30, h=70)
+11 shape and parent scaleX -1 negative: rect (x=-35, y=-35, w=30, h=70)
+Done
