@@ -1,0 +1,13 @@
+0 indexed uv: rect (x=0, y=0, w=80, h=80)
+1 sequential uv: rect (x=0, y=0, w=80, h=80)
+2 matrix uv: rect (x=0, y=0, w=80, h=80)
+3 repeat uv 0..2: rect (x=0, y=0, w=80, h=80)
+4 no repeat uv 0..2: rect (x=0, y=0, w=80, h=80)
+5 smooth: rect (x=0, y=0, w=80, h=80)
+6 no repeat uv -1..1: rect (x=0, y=0, w=80, h=80)
+7 uvt t=1: rect (x=0, y=0, w=80, h=80)
+8 uvt perspective: rect (x=0, y=0, w=80, h=80)
+9 uv affine: rect (x=0, y=0, w=80, h=80)
+10 uvt t=10: rect (x=0, y=0, w=80, h=80)
+11 graphics data uvt: rect (x=0, y=0, w=80, h=80)
+Done
