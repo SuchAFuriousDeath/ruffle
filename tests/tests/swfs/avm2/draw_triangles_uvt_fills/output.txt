@@ -1,0 +1,13 @@
+0 solid uv: rect (x=0, y=0, w=80, h=80)
+1 linear default uv: rect (x=0, y=0, w=80, h=80)
+2 linear default: rect (x=0, y=0, w=80, h=80)
+3 linear box uv: rect (x=0, y=0, w=80, h=80)
+4 linear box: rect (x=0, y=0, w=80, h=80)
+5 radial box uvt: rect (x=0, y=0, w=80, h=80)
+6 bitmap no uv: rect (x=0, y=0, w=80, h=80)
+7 bitmap no uv identity: rect (x=0, y=0, w=80, h=80)
+8 solid alpha uvt: rect (x=0, y=0, w=80, h=80)
+9 solid uv then bitmap: rect (x=0, y=0, w=80, h=80)
+10 stroke solid uv: rect (x=0, y=0, w=80, h=80)
+11 stroke no fill uv: rect (x=0, y=0, w=80, h=80)
+Done
