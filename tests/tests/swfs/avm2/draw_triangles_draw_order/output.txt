@@ -1,0 +1,13 @@
+0 overlap same winding: rect (x=0, y=0, w=80, h=80)
+1 overlap opposite winding: rect (x=0, y=0, w=80, h=80)
+2 overlap two calls: rect (x=0, y=0, w=80, h=80)
+3 overlap uv alpha: rect (x=0, y=0, w=80, h=80)
+4 open path around: rect (x=0, y=0, w=80, h=80)
+5 rect then triangles same fill: rect (x=0, y=0, w=80, h=80)
+6 triangles then rect: rect (x=0, y=0, w=80, h=80)
+7 bitmap path vs uv: rect (x=0, y=0, w=80, h=80)
+8 pen position: rect (x=5, y=10, w=70, h=65)
+9 bitmap path then uv then solid: rect (x=0, y=0, w=80, h=80)
+10 moveTo only then triangles: rect (x=0, y=0, w=80, h=80)
+11 triple overlap: rect (x=0, y=0, w=80, h=80)
+Done
