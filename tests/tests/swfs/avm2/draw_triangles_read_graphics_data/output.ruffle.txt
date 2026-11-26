@@ -1,0 +1,15 @@
+// solid, indexed, culling positive
+  0 entries
+// bitmap, sequential, uvt
+  0 entries
+// stroke + solid, uv, between path segments
+  0 entries
+// GraphicsTrianglePath via drawGraphicsData
+  0 entries
+// culled away completely
+  0 entries
+// bounds: unreferenced vertex, out-of-range index, culled
+  unreferenced vertex: (x=0, y=0, w=10, h=10)
+  triangle after out-of-range index: (x=0, y=0, w=10, h=10)
+  second triangle culled: (x=0, y=0, w=10, h=10)
+Done

@@ -1,0 +1,28 @@
+// solid, indexed, culling positive
+  0 entries
+// bitmap, sequential, uvt
+  0 entries
+// stroke + solid, uv, between path segments
+  13 entries
+  flash.display::GraphicsSolidFill color=ff00 alpha=1
+  flash.display::GraphicsPath commands=[1,2,2] data=[0,0,20,0,0,0] winding=evenOdd
+  flash.display::GraphicsEndFill
+  flash.display::GraphicsStroke thickness=2 fill=flash.display::GraphicsSolidFill
+  flash.display::GraphicsPath commands=[1,2,2] data=[20,0,0,0,20,0] winding=nonZero
+  flash.display::GraphicsStroke thickness=NaN fill=null
+  flash.display::GraphicsSolidFill color=ff00 alpha=1
+  flash.display::GraphicsPath commands=[1,2,2] data=[20,0,20,20,0,0] winding=evenOdd
+  flash.display::GraphicsEndFill
+  flash.display::GraphicsStroke thickness=2 fill=flash.display::GraphicsSolidFill
+  flash.display::GraphicsPath commands=[1,2,2] data=[20,0,20,20,0,0] winding=nonZero
+  flash.display::GraphicsStroke thickness=NaN fill=null
+  flash.display::GraphicsEndFill
+// GraphicsTrianglePath via drawGraphicsData
+  0 entries
+// culled away completely
+  0 entries
+// bounds: unreferenced vertex, out-of-range index, culled
+  unreferenced vertex: (x=0, y=0, w=100, h=100)
+  triangle after out-of-range index: (x=0, y=0, w=100, h=100)
+  second triangle culled: (x=0, y=0, w=100, h=100)
+Done
