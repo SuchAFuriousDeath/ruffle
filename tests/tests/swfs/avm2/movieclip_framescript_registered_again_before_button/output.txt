@@ -1,0 +1,18 @@
+root frame 1
+root frame 1 end
+X1: frame 1 script
+X2: frame 1 script
+tick 1: X1=1, X2=1
+root frame 2: X1.registerAgain()
+root frame 2 end
+X1: second frame 1 script
+tick 2: X1=1, X2=1
+root frame 3: X2.registerAgain(), then new Holder
+  Kid#1 ctor
+  Kid#2 ctor
+X2: second frame 1 script
+root frame 3 end
+tick 3: X1=1, X2=1
+tick 4: X1=1, X2=1
+tick 5: X1=1, X2=1
+Done
