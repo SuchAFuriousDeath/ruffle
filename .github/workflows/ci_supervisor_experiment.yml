@@ -1,0 +1,96 @@
+name: CI supervisor experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ci-supervisor-exp']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FEATURES: lzma,jpegxr,imgtests
+  CARGO_INCREMENTAL: '1'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  RUSTUP_WINDOWS_PATH_ADD_BIN: '1'
+  XDG_RUNTIME_DIR: ''
+  RUFFLE_TEST_OPTS: "--compile-mode=compile-and-verify"
+  # The supervisor runs the test binary outside cargo, which otherwise sets
+  # this from .cargo/config.toml.
+  RUST_MIN_STACK: '8388608'
+
+jobs:
+  perf:
+    name: Supervisor A/B/A / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm, macos-26]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt install -y $(cat .github/linux-dependencies.txt)
+
+      - name: Enable freetype tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo FEATURES=${FEATURES},freetype | tee -a $GITHUB_ENV
+
+      - name: Cache Cargo output
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "supervisor-exp"
+          save-if: true
+
+      - name: Install cargo nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Use DXC for DX12 shaders
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          arch=$([ "$RUNNER_ARCH" = ARM64 ] && echo arm64 || echo x64)
+          sdk=$(ls -d "/c/Program Files (x86)/Windows Kits/10/bin/"10.*/$arch | sort -V | tail -1)
+          test -f "$sdk/dxcompiler.dll"
+          test -f "$sdk/dxil.dll"
+          cygpath -w "$sdk" >> $GITHUB_PATH
+
+      - name: Build tests
+        shell: bash
+        run: cargo nextest run --profile ci --cargo-profile ci -p tests --test tests --locked --features ${FEATURES} --no-run
+
+      - name: "A: nextest -j 4"
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh nextest 4 a1_nextest
+
+      - name: "B: supervisor, 4 workers"
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh supervisor 4 b_supervisor
+
+      - name: "A again: nextest -j 4"
+        shell: bash
+        run: .github/scripts/supervisor_variant.sh nextest 4 a2_nextest
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: cat supervisor-logs/summary.txt | tee -a $GITHUB_STEP_SUMMARY
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: supervisor_logs_${{ matrix.os }}
+          path: supervisor-logs/
